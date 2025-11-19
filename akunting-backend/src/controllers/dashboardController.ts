@@ -14,15 +14,34 @@ export const rekapAggregate = async (req: Request, res: Response) => {
         }
       }
     },
+    // Group per kategori, sub_kategori, bulan
     {
       $group: {
         _id: {
           kategori: '$kategori',
-          sub_kategori: '$sub_kategori'
+          sub_kategori: '$sub_kategori',
+          bulan: '$data_bulanan.bulan'
         },
-        total: { $sum: '$data_bulanan.nilai' }
+        nilai_bulan: { $sum: '$data_bulanan.nilai' }
       }
     },
+    // Group per kategori, sub_kategori
+    {
+      $group: {
+        _id: {
+          kategori: '$_id.kategori',
+          sub_kategori: '$_id.sub_kategori'
+        },
+        data_bulanan: {
+          $push: {
+            bulan: '$_id.bulan',
+            nilai: '$nilai_bulan'
+          }
+        },
+        total_sub_kategori: { $sum: '$nilai_bulan' }
+      }
+    },
+    // Group per kategori
     {
       $group: {
         _id: '$_id.kategori',
@@ -30,13 +49,20 @@ export const rekapAggregate = async (req: Request, res: Response) => {
         subs: {
           $push: {
             sub_kategori: '$_id.sub_kategori',
-            total: '$total'
+            total: '$total_sub_kategori'
           }
         },
-        total_kategori: { $sum: '$total' }
+        data_bulanan: { $push: '$data_bulanan' },
+        total_kategori: { $sum: '$total_sub_kategori' }
       }
     },
-    { $project: { kategori: 1, total_kategori: 1, subs: 1 } }
+    { $project: { kategori: 1, total_kategori: 1, subs: 1, data_bulanan: {
+      $reduce: {
+        input: '$data_bulanan',
+        initialValue: [],
+        in: { $concatArrays: ['$$value', '$$this'] }
+      }
+    } } }
   ];
 
   const result = await Transaksi.aggregate(pipeline);

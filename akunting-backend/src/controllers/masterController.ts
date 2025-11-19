@@ -219,7 +219,19 @@ export const listAkun = async (req: Request, res: Response) => {
       filter.sub_kategori = sub_kategori;
     }
 
-    const list = await Akun.find({ ...filter, status_aktv: true }).sort({ akun: 1 });
+    // Ambil data akun dan join sub kategori agar dapat _id
+    const akunList = await Akun.find({ ...filter, status_aktv: true }).sort({ akun: 1 });
+    // Cari sub kategori berdasarkan nama untuk dapatkan _id
+    const subKategoriAll = await SubKategori.find({});
+    const list = akunList.map((a) => {
+      const subKategoriObj = subKategoriAll.find(
+        (sub) => sub.sub_kategori === a.sub_kategori
+      );
+      return {
+        ...a.toObject(),
+        subkategori_id: subKategoriObj ? subKategoriObj._id : '',
+      };
+    });
     res.json(list);
   } catch (error) {
     console.error('❌ Error in listAkun:', error);
@@ -241,16 +253,25 @@ export const createAkun = async (req: Request, res: Response) => {
     }
     if (!userId) userId = 'system';
 
-    // sub_kategori dikirim sebagai _id, ambil nama sub kategori
+    // sub_kategori dikirim sebagai _id, ambil semua relasi sub kategori
     let subKategoriNama = sub_kategori;
+    let subKategoriId = null;
+    let subKategoriKode = '';
+    let kategoriNama = '';
     if (mongoose.Types.ObjectId.isValid(sub_kategori)) {
       const subKategoriDoc = await SubKategori.findById(sub_kategori);
       if (!subKategoriDoc) return res.status(400).json({ message: 'SubKategori tidak ditemukan' });
       subKategoriNama = subKategoriDoc.sub_kategori;
+      subKategoriId = subKategoriDoc._id;
+      subKategoriKode = subKategoriDoc.kode;
+      kategoriNama = subKategoriDoc.kategori;
     }
 
     const a = new Akun({
       sub_kategori: subKategoriNama,
+      sub_kategori_id: subKategoriId,
+      sub_kategori_kode: subKategoriKode,
+      kategori: kategoriNama,
       akun,
       kode,
       input_date: new Date(),

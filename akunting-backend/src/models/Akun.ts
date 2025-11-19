@@ -16,7 +16,9 @@ export interface IAkun extends Document {
 }
 
 const AkunSchema: Schema = new Schema({
-  sub_kategori: { type: String, required: true }, // langsung nama sub kategori
+  sub_kategori: { type: String, required: true }, // nama sub kategori
+  sub_kategori_id: { type: Schema.Types.ObjectId, ref: 'SubKategori', required: false },
+  kategori: { type: String, required: false }, // nama kategori dari sub kategori
   status_aktv: { type: Boolean, default: true },
   sub_kategori_kode: { type: String, required: false },
   akun: { type: String, required: true },

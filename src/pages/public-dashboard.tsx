@@ -19,26 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
-interface ChartData {
-  name: string;
-  value: number;
-}
-
-interface SubKategoriData {
-  subkategori: string;
-  nilai: number;
-  persentase: number;
-}
-
-export default function Dashboard() {
+export default function PublicDashboard() {
   const [year, setYear] = useState(new Date().getFullYear().toString());
 
   const { data, isLoading, error } = useQuery({
@@ -49,24 +31,7 @@ export default function Dashboard() {
     },
   });
 
-  // Mapping backend response to chartData dan tableData
   const rekapData = data?.data || [];
-  // Chart donut: total per kategori
-  const chartData = rekapData.map((item: any) => ({
-    name: item.kategori,
-    value: item.total_kategori,
-    subs: item.subs || [],
-  }));
-  // Table: sub kategori breakdown
-  const tableData = rekapData
-    .flatMap((item: any) => item.subs.map((sub: any) => ({
-      kategori: item.kategori,
-      subkategori: sub.sub_kategori || sub.subKategori,
-      nilai: sub.total,
-      persentase: item.total_kategori ? (sub.total / item.total_kategori) * 100 : 0,
-    })))
-
-  // Data untuk stacked bar: kategori (x-axis) dengan sub kategori sebagai bar yang ditumpuk
   const stackedBarData = rekapData.map((item: any) => ({
     kategori: item.kategori,
     subs: (item.subs || []).map((s: any) => ({
@@ -74,7 +39,6 @@ export default function Dashboard() {
       total: s.total,
     }))
   }));
-
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -83,21 +47,8 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <Select value={year} onValueChange={setYear}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="2023">2023</SelectItem>
-            <SelectItem value="2024">2024</SelectItem>
-            <SelectItem value="2025">2025</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
+    <div className="space-y-6 p-6 max-w-6xl mx-auto">
+      <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
       {isLoading ? (
         <div className="h-[350px] flex items-center justify-center">
           <p className="text-muted-foreground">Loading...</p>
@@ -110,7 +61,6 @@ export default function Dashboard() {
         </Card>
       ) : (
         <>
-          {/* Stacked bar chart agregat per kategori */}
           <div className="mb-8">
             <StackedBarKategori
               data={stackedBarData}
@@ -118,10 +68,8 @@ export default function Dashboard() {
             />
           </div>
           {rekapData.map((item: any, idx: number) => {
-            // Data bulanan untuk line chart per kategori
             const bulanOrder = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
             const parseBulan = (bulanStr: string) => {
-              // Format: 'JAN - 25' atau 'DEC - 24'
               const [bulan, tahun] = bulanStr.split('-').map(s => s.trim());
               return {
                 bulan,

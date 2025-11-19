@@ -17,6 +17,7 @@ import Akun from "./pages/MasterData/Akun";
 import Transaksi from "./pages/Transaksi";
 import TutupBuku from "./pages/TutupBuku";
 import NotFound from "./pages/NotFound";
+import PublicDashboard from "./pages/public-dashboard";
 
 const queryClient = new QueryClient();
 
@@ -75,6 +76,7 @@ const App = () => (
               </ProtectedRoute>
             }
           />
+          <Route path="/public-dashboard" element={<PublicDashboard />} />
           
           <Route
             path="/transaksi"

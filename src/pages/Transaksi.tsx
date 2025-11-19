@@ -156,10 +156,15 @@ export default function Transaksi() {
     : [];
 
   // Filter akun sesuai sub kategori yang dipilih (backend: sub_kategori = nama)
-  const filteredAccounts = formData.subkategori_id
+  const filteredAccounts = formData.subkategori_id && formData.kategori_id
     ? accounts.filter((acc) => {
-        const selectedSubKategori = subCategories.find((sk) => sk._id === formData.subkategori_id)?.sub_kategori;
-        return acc.sub_kategori === selectedSubKategori;
+        const selectedSubKategori = subCategories.find((sk) => sk._id === formData.subkategori_id);
+        const selectedKategori = categories.find((cat) => cat._id === formData.kategori_id)?.kategori;
+        return (
+          acc.sub_kategori === selectedSubKategori?.sub_kategori &&
+          acc.kategori === selectedKategori &&
+          acc.sub_kategori_kode === selectedSubKategori?.kode
+        );
       })
     : [];
 

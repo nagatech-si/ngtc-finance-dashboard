@@ -116,7 +116,9 @@ export default function Akun() {
 
     // Delete mutation
     const deleteMutation = useMutation({
-      mutationFn: (id: string) => axiosInstance.delete(`/master/akun/${id}`),
+      mutationFn: (id: string) => axiosInstance.delete(`/master/akun/${id}`, {
+        data: { delete_by: user?.name || 'Unknown' },
+      }),
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['akun'] });
         toast.success('Akun berhasil dihapus!');
@@ -138,10 +140,9 @@ export default function Akun() {
         toast.error('Nama Akun wajib diisi!');
         return;
       }
-      // Ambil nama sub kategori dari subCategories
-      const subKategoriObj = subCategories.find((sub) => sub._id === formData.subkategori_id);
+      // Kirim _id sub kategori ke backend
       const payload = {
-        sub_kategori: subKategoriObj ? subKategoriObj.sub_kategori : formData.subkategori_id,
+        sub_kategori: formData.subkategori_id,
         akun: formData.nama,
         kode: formData.kode,
         input_by: user?.name || 'Unknown',
@@ -150,8 +151,15 @@ export default function Akun() {
     };
 
     const handleEdit = (item: Akun) => {
+      const subKategoriObj = subCategories.find(
+        (sub) => sub.sub_kategori === item.sub_kategori
+      );
       setEditId(item._id || null);
-      setFormData(item);
+      setFormData({
+        ...item,
+        nama: item.nama || item.akun || '',
+        subkategori_id: subKategoriObj ? subKategoriObj._id : '',
+      });
       setModalOpen(true);
     };
 
