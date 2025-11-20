@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import axiosInstance from '@/api/axiosInstance';
@@ -51,22 +51,33 @@ interface Option {
   nama: string;
 }
 
-const BULAN_FISKAL = [
-  'DEC - 24',
-  'JAN - 25',
-  'FEB - 25',
-  'MAR - 25',
-  'APR - 25',
-  'MAY - 25',
-  'JUN - 25',
-  'JUL - 25',
-  'AUG - 25',
-  'SEP - 25',
-  'OCT - 25',
-  'NOV - 25',
-];
+// Bulan fiskal dinamis dari backend
+const currentYear = new Date().getFullYear();
 
 export default function Transaksi() {
+  // Tahun fiskal global dari store
+  const { fiscalYear } = useAppStore();
+  // Fetch fiscal months dari backend
+  const {
+    data: fiscalMonthsData,
+    isLoading: isMonthsLoading,
+    refetch: refetchFiscalMonths
+  } = useQuery({
+    queryKey: ['fiscal-months', fiscalYear],
+    queryFn: async () => {
+      const res = await axiosInstance.get(`/fiscal/months?tahun=${fiscalYear}`);
+      return res.data.months || [];
+    },
+  });
+
+  // Refresh fiscal months setiap tahun fiskal berubah
+  useEffect(() => {
+    refetchFiscalMonths();
+  }, [fiscalYear, refetchFiscalMonths]);
+  // Reset bulan fiskal di form ketika tahun fiskal berubah agar tidak memegang nilai lama
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, bulan_fiskal: '' }));
+  }, [fiscalYear]);
       const [editModalOpen, setEditModalOpen] = useState(false);
       const [editData, setEditData] = useState<any>(null);
 
@@ -83,6 +94,13 @@ export default function Transaksi() {
         });
         setEditModalOpen(true);
       };
+
+      // Reset bulan fiskal in edit modal when tahun fiskal changes
+      useEffect(() => {
+        if (editModalOpen) {
+          setEditData((prev) => prev ? { ...prev, bulan: '' } : prev);
+        }
+      }, [fiscalYear, editModalOpen]);
 
       // Handler simpan edit
       const handleEditSave = async () => {
@@ -288,12 +306,15 @@ export default function Transaksi() {
                 <SelectTrigger>
                   <SelectValue placeholder="Pilih bulan" />
                 </SelectTrigger>
-                <SelectContent>
-                  {BULAN_FISKAL.map((bulan) => (
-                    <SelectItem key={bulan} value={bulan}>
-                      {bulan}
-                    </SelectItem>
-                  ))}
+                <SelectContent className="h-60 overflow-y-auto">
+                  {isMonthsLoading ? (
+                    editData?.bulan ? <SelectItem value={editData.bulan}>{editData.bulan}</SelectItem> : null
+                  ) : (
+                    fiscalMonthsData?.filter((bulan: string) => !!bulan && bulan.trim() !== "")
+                      .map((bulan: string) => (
+                        <SelectItem key={bulan} value={bulan}>{bulan}</SelectItem>
+                      ))
+                  )}
                 </SelectContent>
               </Select>
               <Label>Nilai</Label>
@@ -401,12 +422,15 @@ export default function Transaksi() {
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih bulan" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {BULAN_FISKAL.map((bulan) => (
-                      <SelectItem key={bulan} value={bulan}>
-                        {bulan}
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="h-60 overflow-y-auto">
+                    {isMonthsLoading ? (
+                      <SelectItem value={formData.bulan_fiskal || 'loading'}>{formData.bulan_fiskal || 'Memuat bulan...'}</SelectItem>
+                    ) : (
+                      fiscalMonthsData?.filter((bulan: string) => !!bulan && bulan.trim() !== "")
+                        .map((bulan: string) => (
+                          <SelectItem key={bulan} value={bulan}>{bulan}</SelectItem>
+                        ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -454,13 +478,13 @@ export default function Transaksi() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    Loading...
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    Memuat data transaksi...
                   </TableCell>
                 </TableRow>
               ) : data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     Belum ada transaksi
                   </TableCell>
                 </TableRow>

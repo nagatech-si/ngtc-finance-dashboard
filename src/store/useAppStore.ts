@@ -10,6 +10,8 @@ interface AppState {
   isAuthenticated: boolean;
   setUser: (user: User | null) => void;
   logout: () => void;
+  fiscalYear: number;
+  setFiscalYear: (year: number) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -23,4 +25,6 @@ export const useAppStore = create<AppState>((set) => ({
     localStorage.removeItem('user_name');
     set({ user: null, isAuthenticated: false });
   },
+  fiscalYear: new Date().getFullYear(),
+  setFiscalYear: (year: number) => set({ fiscalYear: year }),
 }));

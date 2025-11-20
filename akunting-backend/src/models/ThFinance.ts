@@ -28,6 +28,7 @@ const ThFinanceSchema: Schema = new Schema({
   data_bulanan: { type: [DataBulananThSchema], default: [] },
   total_tahunan: { type: Number, default: 0 },
   input_by: { type: String, required: true },
+  tahun_fiskal: { type: String, required: true },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
 });

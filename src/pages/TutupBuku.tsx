@@ -2,8 +2,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-toastify";
 import axiosInstance from "@/api/axiosInstance";
+import { useAppStore } from "@/store/useAppStore";
 
 export default function TutupBuku() {
+    const { setFiscalYear } = useAppStore();
   const [loading, setLoading] = useState(false);
   const [tahun, setTahun] = useState("");
 
@@ -17,6 +19,8 @@ export default function TutupBuku() {
       const res = await axiosInstance.post("/fiscal/close", { fiscalYear: tahun });
       if (res.data.success) {
         toast.success(`Tutup buku berhasil! Data tahun ${tahun} dipindahkan.`);
+        // Update fiscal year in global store
+        setFiscalYear(Number(tahun) + 1);
       } else {
         toast.error("Tutup buku gagal!");
       }

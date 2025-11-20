@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChartDonut } from '@/components/ChartDonut';
 import LineChartKategori from '@/components/LineChartKategori';
@@ -11,6 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAppStore } from '@/store/useAppStore';
 import {
   Table,
   TableBody,
@@ -39,7 +41,30 @@ interface SubKategoriData {
 }
 
 export default function Dashboard() {
-  const [year, setYear] = useState(new Date().getFullYear().toString());
+  const queryClient = useQueryClient();
+  // Year state; start empty then set to latest fiscal year when list arrives
+  const [year, setYear] = useState<string>('');
+  const userSelectedYearRef = useRef(false);
+  const handleYearChange = (val: string) => {
+    userSelectedYearRef.current = true;
+    setYear(val);
+  };
+  // Fetch fiscal years dari backend
+  const { data: fiscalYearsData, isLoading: isYearsLoading } = useQuery({
+    queryKey: ['fiscal-years'],
+    queryFn: async () => {
+      const res = await axiosInstance.get('/fiscal/years');
+      return res.data.years || [];
+    },
+  });
+
+  // Once fiscal years loaded, pick the latest (max) if user hasn't chosen yet
+  useEffect(() => {
+    if (!userSelectedYearRef.current && fiscalYearsData && fiscalYearsData.length > 0) {
+      const latest = Math.max(...fiscalYearsData);
+      if (year !== latest.toString()) setYear(latest.toString());
+    }
+  }, [fiscalYearsData, year]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard', year],
@@ -47,6 +72,7 @@ export default function Dashboard() {
       const response = await axiosInstance.get(`/dashboard/rekap-aggregate?tahun=${year}`);
       return response.data;
     },
+    enabled: !!year,
   });
 
   // Mapping backend response to chartData dan tableData
@@ -86,16 +112,22 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <Select value={year} onValueChange={setYear}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="2023">2023</SelectItem>
-            <SelectItem value="2024">2024</SelectItem>
-            <SelectItem value="2025">2025</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col items-end">
+          <Select value={year} onValueChange={handleYearChange}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Pilih Tahun" />
+            </SelectTrigger>
+            <SelectContent className="max-h-56 overflow-y-auto">
+              {isYearsLoading ? (
+                <SelectItem value={year || 'loading'}>{year || 'Memuat...'}</SelectItem>
+              ) : (
+                fiscalYearsData?.map((th: number) => (
+                  <SelectItem key={th} value={th.toString()}>{th}</SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {isLoading ? (
