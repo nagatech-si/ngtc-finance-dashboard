@@ -135,6 +135,41 @@ export default function Transaksi() {
     nilai: 0,
     input_by: '',
   });
+
+  // Persist selected bulan per fiscal year in localStorage so refresh keeps selection
+  const selectedMonthKey = `transaksi_selected_bulan_${fiscalYear}`;
+
+  // When fiscalMonthsData loads, pick a sensible default (stored selection or first month)
+  useEffect(() => {
+    if (!fiscalMonthsData || fiscalMonthsData.length === 0) return;
+    const stored = localStorage.getItem(selectedMonthKey);
+    // Normalize comparison to avoid issues with spacing/formatting
+    const monthsNormalized = fiscalMonthsData.map((m: string) => (m || '').trim());
+    if (stored) {
+      const storedNorm = stored.trim();
+      const matchIndex = monthsNormalized.findIndex((m: string) => m === storedNorm);
+      if (matchIndex !== -1) {
+        const matched = fiscalMonthsData[matchIndex];
+        setFormData(prev => ({ ...prev, bulan_fiskal: matched }));
+        return;
+      }
+    }
+    // Prefer current month (formatted as e.g. 'MAR - 25') if present, otherwise default to first
+    const now = new Date();
+    const monthShorts = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    const prefer = `${monthShorts[now.getMonth()]} - ${now.getFullYear().toString().slice(-2)}`;
+    const preferIndex = monthsNormalized.findIndex((m: string) => m === prefer);
+    const defaultMonth = preferIndex !== -1 ? fiscalMonthsData[preferIndex] : fiscalMonthsData[0];
+    setFormData(prev => ({ ...prev, bulan_fiskal: defaultMonth }));
+    localStorage.setItem(selectedMonthKey, defaultMonth);
+  }, [fiscalMonthsData, selectedMonthKey]);
+
+  // Save user's selection when bulan_fiskal changes
+  useEffect(() => {
+    if (formData.bulan_fiskal) {
+      localStorage.setItem(selectedMonthKey, formData.bulan_fiskal);
+    }
+  }, [formData.bulan_fiskal, selectedMonthKey]);
   // ...existing code...
   const { user } = useAppStore();
 

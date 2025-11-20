@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import TTFinance from '../models/Transaksi';
 import ThFinance from '../models/ThFinance';
 import Transaksi from '../models/Transaksi';
+import FiscalConfig from '../models/FiscalConfig';
 import { fiscalMonthsForYear } from '../utils/fiscal';
 // GET /fiscal/years
 export const getFiscalYears = async (req: Request, res: Response) => {
@@ -59,11 +60,36 @@ export const closeFiscalYear = async (req: Request, res: Response) => {
     // Hapus transaksi tahun berjalan dari tt_finance
     await TTFinance.deleteMany({ tahun_fiskal: fiscalYear });
 
-    // TODO: Set fiscal tahun baru sebagai aktif (implementasi tergantung model fiscal)
+    // Persist new active fiscal year (tahun berikutnya)
+    const nextYear = Number(fiscalYear) + 1;
+    await FiscalConfig.findOneAndUpdate(
+      { key: 'fiscal' },
+      { active_year: nextYear },
+      { upsert: true, new: true }
+    );
 
-    res.json({ success: true, migratedCount: migrated.length });
+    res.json({ success: true, migratedCount: migrated.length, nextActive: nextYear });
   } catch (error) {
     console.error('❌ Error in closeFiscalYear:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// GET /fiscal/active
+export const getActiveFiscalYear = async (req: Request, res: Response) => {
+  try {
+    const cfg = await FiscalConfig.findOne({ key: 'fiscal' }).lean();
+    if (cfg && cfg.active_year) {
+      return res.json({ success: true, activeYear: cfg.active_year });
+    }
+    // Fallback: infer from existing data (max of distinct years)
+    const tahunTransaksi = await Transaksi.distinct('tahun_fiskal');
+    const tahunThFinance = await ThFinance.distinct('tahun_fiskal');
+    const tahunList = Array.from(new Set([...tahunTransaksi, ...tahunThFinance]))
+      .map(t => parseInt(t)).filter(t => !isNaN(t)).sort((a, b) => b - a);
+    const inferred = tahunList.length ? Math.max(...tahunList) : new Date().getFullYear();
+    res.json({ success: true, activeYear: inferred });
+  } catch (error) {
     res.status(500).json({ message: 'Server error', error });
   }
 };

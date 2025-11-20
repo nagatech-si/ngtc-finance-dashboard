@@ -16,11 +16,14 @@ export default function TutupBuku() {
     }
     setLoading(true);
     try {
+      console.debug('[TutupBuku] Attempting to close fiscal year:', tahun);
       const res = await axiosInstance.post("/fiscal/close", { fiscalYear: tahun });
+      console.debug('[TutupBuku] /fiscal/close response:', res?.data);
       if (res.data.success) {
         toast.success(`Tutup buku berhasil! Data tahun ${tahun} dipindahkan.`);
         // Update fiscal year in global store
         setFiscalYear(Number(tahun) + 1);
+        console.debug('[TutupBuku] setFiscalYear called with:', Number(tahun) + 1);
       } else {
         toast.error("Tutup buku gagal!");
       }

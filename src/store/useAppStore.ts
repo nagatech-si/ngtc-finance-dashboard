@@ -25,6 +25,9 @@ export const useAppStore = create<AppState>((set) => ({
     localStorage.removeItem('user_name');
     set({ user: null, isAuthenticated: false });
   },
-  fiscalYear: new Date().getFullYear(),
-  setFiscalYear: (year: number) => set({ fiscalYear: year }),
+  fiscalYear: Number(localStorage.getItem('fiscal_year')) || new Date().getFullYear(),
+  setFiscalYear: (year: number) => {
+    localStorage.setItem('fiscal_year', String(year));
+    set({ fiscalYear: year });
+  },
 }));

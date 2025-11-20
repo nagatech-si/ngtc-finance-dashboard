@@ -2,6 +2,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
+import { fetchActiveFiscalYear } from '@/api/fiscal';
+import { useEffect } from 'react';
+import { useAppStore } from '@/store/useAppStore';
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -27,6 +31,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <ToastContainer position="top-right" autoClose={3000} />
+      <FiscalYearInitializer />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -107,3 +112,25 @@ const App = () => (
 );
 
 export default App;
+
+function FiscalYearInitializer() {
+  // This component runs early and ensures the global fiscal year
+  // is aligned with server's active fiscal year.
+  const setFiscalYear = useAppStore(s => s.setFiscalYear);
+  const { data: activeYear } = useQuery({
+    queryKey: ['fiscal-active'],
+    queryFn: fetchActiveFiscalYear,
+  });
+
+  useEffect(() => {
+    console.debug('[FiscalYearInitializer] fetched activeYear:', activeYear);
+    if (activeYear) {
+      console.debug('[FiscalYearInitializer] setting fiscalYear to', Number(activeYear));
+      setFiscalYear(Number(activeYear));
+    } else {
+      console.debug('[FiscalYearInitializer] no activeYear returned from server');
+    }
+  }, [activeYear, setFiscalYear]);
+
+  return null;
+}

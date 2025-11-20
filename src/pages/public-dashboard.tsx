@@ -4,6 +4,7 @@ import { ChartDonut } from '@/components/ChartDonut';
 import LineChartKategori from '@/components/LineChartKategori';
 import StackedBarKategori from '@/components/StackedBarKategori';
 import axiosInstance from '@/api/axiosInstance';
+import { fetchFiscalYears } from '@/api/fiscal';
 import {
   Card,
   CardContent,
@@ -39,16 +40,13 @@ export default function PublicDashboard() {
   // Fiscal years list for filter
   const { data: fiscalYearsData, isLoading: isYearsLoading } = useQuery({
     queryKey: ['fiscal-years'],
-    queryFn: async () => {
-      const res = await axiosInstance.get('/fiscal/years');
-      return res.data.years || [];
-    },
+    queryFn: fetchFiscalYears,
   });
 
   // Auto-select latest fiscal year if user hasn't chosen
   useEffect(() => {
     if (!userSelectedYearRef.current && fiscalYearsData && fiscalYearsData.length > 0) {
-      const latest = Math.max(...fiscalYearsData);
+      const latest = fiscalYearsData[0];
       if (year !== latest.toString()) setYear(latest.toString());
     }
   }, [fiscalYearsData, year]);
