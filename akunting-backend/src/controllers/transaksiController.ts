@@ -101,11 +101,62 @@ export const createTransaksi = async (req: Request, res: Response) => {
 
 export const listTransaksi = async (req: Request, res: Response) => {
   try {
-    const { tahun } = req.query;
+    const { tahun, page = '1', limit = '10', flatten = '0' } = req.query;
+    const pageNum = parseInt(page as string, 10) || 1;
+    const limitNum = parseInt(limit as string, 10) || 10;
+    const doFlatten = String(flatten) === '1' || String(flatten).toLowerCase() === 'true';
     const filter: any = {};
-    if (tahun) filter.tahun = tahun;
-    const list = await Transaksi.find(filter).sort({ akun: 1, sub_kategori: 1 });
-    res.json(list);
+    // Transaksi documents store fiscal year in `tahun_fiskal`.
+    if (tahun) filter.tahun_fiskal = tahun;
+
+    if (doFlatten) {
+      // Aggregate to return flattened data_bulanan rows with pagination
+      const matchStage = Object.keys(filter).length ? [{ $match: filter }] : [];
+      // Unwind and project useful fields
+      const pipeline: any[] = [
+        ...matchStage,
+        { $unwind: '$data_bulanan' },
+        {
+          $project: {
+            kategori: 1,
+            sub_kategori: 1,
+            akun: 1,
+            input_by: 1,
+            tahun_fiskal: 1,
+            bulan: '$data_bulanan.bulan',
+            nilai: '$data_bulanan.nilai',
+            parentId: '$_id',
+          },
+        },
+        { $sort: { akun: 1, sub_kategori: 1, bulan: 1 } },
+        {
+          $facet: {
+            pagedResults: [
+              { $skip: (pageNum - 1) * limitNum },
+              { $limit: limitNum },
+            ],
+            totalCount: [
+              { $count: 'count' }
+            ]
+          }
+        }
+      ];
+
+      const aggRes = await Transaksi.aggregate(pipeline).allowDiskUse(true).exec();
+      const paged = aggRes[0]?.pagedResults || [];
+      const total = (aggRes[0]?.totalCount && aggRes[0].totalCount[0] && aggRes[0].totalCount[0].count) || 0;
+      const totalPages = Math.ceil(total / limitNum) || 1;
+      return res.json({ data: paged, total, page: pageNum, totalPages });
+    }
+
+    // Default: return paginated documents (grouped per transaksi)
+    const total = await Transaksi.countDocuments(filter);
+    const totalPages = Math.ceil(total / limitNum) || 1;
+    const list = await Transaksi.find(filter)
+      .sort({ akun: 1, sub_kategori: 1 })
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum);
+    res.json({ data: list, total, page: pageNum, totalPages });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error });
   }

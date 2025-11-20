@@ -4,6 +4,12 @@ import { toast } from 'react-toastify';
 import axiosInstance from '@/api/axiosInstance';
 import { useAppStore } from '@/store/useAppStore';
 import { Button } from '@/components/ui/button';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationPrevious,
+  PaginationNext,
+} from '@/components/ui/pagination';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -81,16 +87,16 @@ export default function Transaksi() {
       const [editModalOpen, setEditModalOpen] = useState(false);
       const [editData, setEditData] = useState<any>(null);
 
-      // Handler edit transaksi (open modal)
-      const handleEdit = (item, trx) => {
+      // Handler edit transaksi (open modal) for flattened row
+      const handleEdit = (row: any) => {
         setEditData({
-          id: item._id,
-          kategori: item.kategori,
-          sub_kategori: item.sub_kategori,
-          akun: item.akun,
-          bulan: trx.bulan,
-          nilai: trx.nilai,
-          input_by: item.input_by,
+          id: row.parentId || row._id,
+          kategori: row.kategori,
+          sub_kategori: row.sub_kategori,
+          akun: row.akun,
+          bulan: row.bulan,
+          nilai: row.nilai,
+          input_by: row.input_by,
         });
         setEditModalOpen(true);
       };
@@ -116,17 +122,20 @@ export default function Transaksi() {
       };
 
       // Handler hapus transaksi bulanan
-      const handleDelete = async (item, trx) => {
+      const handleDelete = async (row: any) => {
         try {
-          await axiosInstance.delete(`/transaksi/${item._id}/bulan/${trx.bulan}`);
+          const parentId = row.parentId || row._id;
+          await axiosInstance.delete(`/transaksi/${parentId}/bulan/${row.bulan}`);
           queryClient.invalidateQueries({ queryKey: ['transaksi'] });
           toast.success('Transaksi berhasil dihapus!');
         } catch {
           toast.error('Gagal menghapus transaksi.');
         }
       };
-    // ...existing code...
-  const queryClient = useQueryClient();
+        // ...existing code...
+      const queryClient = useQueryClient();
+      const [page, setPage] = useState<number>(1);
+      const [pageSize, setPageSize] = useState<number>(10);
   const [formData, setFormData] = useState<Transaksi>({
     kategori_id: '',
     subkategori_id: '',
@@ -221,14 +230,22 @@ export default function Transaksi() {
       })
     : [];
 
-  // Fetch transaksi
-  const { data = [], isLoading, error } = useQuery({
-    queryKey: ['transaksi'],
+  // Fetch transaksi (paginated, flattened rows)
+  const { data: transaksiResp, isLoading, error } = useQuery({
+    queryKey: ['transaksi', page, pageSize, fiscalYear],
     queryFn: async () => {
-      const response = await axiosInstance.get('/transaksi');
-      return response.data || [];
+      const tahunParam = fiscalYear ? `&tahun=${encodeURIComponent(String(fiscalYear))}` : '';
+      const response = await axiosInstance.get(`/transaksi?flatten=1&page=${page}&limit=${pageSize}${tahunParam}`);
+      return response.data;
     },
   });
+
+  const transaksiList = (transaksiResp as any)?.data || [];
+  const totalPages = (transaksiResp as any)?.totalPages || 1;
+  // Reset to first page if pageSize changes
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize]);
 
   // Create transaksi mutation
   const createMutation = useMutation({
@@ -517,38 +534,68 @@ export default function Transaksi() {
                     Memuat data transaksi...
                   </TableCell>
                 </TableRow>
-              ) : data.length === 0 ? (
+              ) : transaksiList.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground">
                     Belum ada transaksi
                   </TableCell>
                 </TableRow>
               ) : (
-                data.flatMap((item) =>
-                  item.data_bulanan.map((trx, idx) => (
-                    <TableRow key={item._id + '-' + idx}>
-                      <TableCell>{trx.bulan}</TableCell>
-                      <TableCell>{item.kategori}</TableCell>
-                      <TableCell>{item.sub_kategori}</TableCell>
-                      <TableCell>{item.akun}</TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(trx.nilai)}
-                      </TableCell>
-                      <TableCell>{item.input_by}</TableCell>
-                      <TableCell>
-                        <Button size="sm" variant="outline" onClick={() => handleEdit(item, trx)}>
-                          Edit
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleDelete(item, trx)} className="ml-2">
-                          Hapus
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )
+                transaksiList.map((row: any, idx: number) => (
+                  <TableRow key={(row.parentId || row._id) + '-' + idx}>
+                    <TableCell>{row.bulan}</TableCell>
+                    <TableCell>{row.kategori}</TableCell>
+                    <TableCell>{row.sub_kategori}</TableCell>
+                    <TableCell>{row.akun}</TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(row.nilai)}
+                    </TableCell>
+                    <TableCell>{row.input_by}</TableCell>
+                    <TableCell>
+                      <Button size="sm" variant="outline" onClick={() => handleEdit(row)}>
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleDelete(row)} className="ml-2">
+                        Hapus
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>
+          <div className="flex items-center justify-between mt-4">
+            <div className="flex items-center gap-3">
+              <div className="text-sm text-muted-foreground">Per halaman</div>
+              <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="text-sm text-muted-foreground">Halaman {page} dari {totalPages}</div>
+
+            <div>
+              <Pagination>
+                <PaginationContent>
+                  <PaginationPrevious
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className={page <= 1 ? 'opacity-50 pointer-events-none' : ''}
+                  />
+                  <PaginationNext
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className={page >= totalPages ? 'opacity-50 pointer-events-none' : ''}
+                  />
+                </PaginationContent>
+              </Pagination>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
