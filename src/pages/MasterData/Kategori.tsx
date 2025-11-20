@@ -89,12 +89,20 @@ export default function Kategori() {
       return axiosInstance.post('/master/kategori', payload);
     },
     onSuccess: () => {
+      return; // handled in onSettled
+    },
+    onError: () => { /* handled in onSettled */ },
+    onSettled: (data: any, error: any) => {
       queryClient.invalidateQueries({ queryKey: ['kategori'] });
       queryClient.invalidateQueries({ queryKey: ['kategori-all'] });
-      toast.success(editId ? 'Kategori berhasil diupdate!' : 'Kategori berhasil ditambahkan!');
-      handleCloseModal();
+      const serverMsg = data?.data?.message || error?.response?.data?.message;
+      if (serverMsg) {
+        if (error) toast.error(serverMsg); else toast.success(serverMsg);
+      } else {
+        if (error) toast.error('Gagal menyimpan kategori!'); else toast.success('Data berhasil disimpan.');
+      }
+      if (!error) handleCloseModal();
     },
-    onError: () => toast.error('Gagal menyimpan kategori!'),
   });
 
   // Delete (soft delete)
@@ -102,14 +110,16 @@ export default function Kategori() {
     mutationFn: (id: string) => axiosInstance.delete(`/master/kategori/${id}`, {
       data: { delete_by: user?.name || 'Unknown' },
     }),
-    onSuccess: () => {
+    onSuccess: (resp: any) => {
       queryClient.invalidateQueries({ queryKey: ['kategori'] });
       queryClient.invalidateQueries({ queryKey: ['kategori-all'] });
-      toast.success('Kategori berhasil dihapus!');
+      const msg = resp?.data?.message || 'Kategori berhasil dihapus!';
+      toast.success(msg);
     },
     onError: (error: any) => {
-      if (error?.response?.data?.message?.includes('Maaf, data ini sudah ada transaksi')) {
-        toast.error(error.response.data.message);
+      const serverMsg = error?.response?.data?.message;
+      if (serverMsg) {
+        toast.error(serverMsg);
       } else {
         toast.error('Gagal menghapus kategori!');
       }

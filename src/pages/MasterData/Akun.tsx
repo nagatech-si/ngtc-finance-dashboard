@@ -98,19 +98,22 @@ export default function Akun() {
         }
         return axiosInstance.post('/master/akun', payload);
       },
-      onSuccess: () => {
+      onSuccess: () => { /* handled in onSettled */ },
+      onError: () => { /* handled in onSettled */ },
+      onSettled: (data: any, error: any) => {
         queryClient.invalidateQueries({ queryKey: ['akun'] });
-        toast.success(editId ? 'Akun berhasil diupdate!' : 'Akun berhasil ditambahkan!');
-        handleCloseModal();
-      },
-      onError: (error: any) => {
-        // Custom re-activate logic
+        const serverMsg = data?.data?.message || error?.response?.data?.message;
+        if (serverMsg) {
+          if (error) toast.error(serverMsg); else toast.success(serverMsg);
+        } else {
+          if (error) toast.error('Gagal menyimpan data. Silakan coba lagi.'); else toast.success('Data berhasil disimpan.');
+        }
+        // custom re-activate logic preserved
         if (error?.response?.data?.code === 'REACTIVATE' && error?.response?.data?.id) {
           setReactivateId(error.response.data.id);
           setShowReactivateDialog(true);
-        } else {
-          toast.error('Gagal menyimpan data. Silakan coba lagi.');
         }
+        if (!error) handleCloseModal();
       },
     });
 
@@ -119,14 +122,20 @@ export default function Akun() {
       mutationFn: (id: string) => axiosInstance.delete(`/master/akun/${id}`, {
         data: { delete_by: user?.name || 'Unknown' },
       }),
-      onSuccess: () => {
+      onSuccess: (resp: any) => {
         queryClient.invalidateQueries({ queryKey: ['akun'] });
-        toast.success('Akun berhasil dihapus!');
+        const msg = resp?.data?.message || 'Akun berhasil dihapus!';
+        toast.success(msg);
         setShowDeleteDialog(false);
         setDeleteId(null);
       },
-      onError: () => {
-        toast.error('Gagal menghapus data. Silakan coba lagi.');
+      onError: (error: any) => {
+        const serverMsg = error?.response?.data?.message;
+        if (serverMsg) {
+          toast.error(serverMsg);
+        } else {
+          toast.error('Gagal menghapus data. Silakan coba lagi.');
+        }
       },
     });
 

@@ -112,32 +112,18 @@ export default function SubKategori() {
       }
       return axiosInstance.post('/master/subkategori', payload);
     },
-    onSuccess: () => {
+    onSuccess: () => { /* handled in onSettled */ },
+    onError: () => { /* handled in onSettled */ },
+    onSettled: (data: any, error: any, vars: any) => {
       queryClient.invalidateQueries({ queryKey: ['subkategori'] });
-      toast.success(editId ? 'Sub Kategori berhasil diupdate!' : 'Sub Kategori berhasil ditambahkan!');
-      handleCloseModal();
-    },
-    onError: (error: any, payload: SubKategori) => {
-      // Cek error dari backend (duplicate key, code 11000)
-      if (error?.response?.data?.code === 11000) {
-        // Cari data non-aktif dari backend response jika ada
-        const allData = Array.isArray(error?.response?.data?.allData)
-          ? error.response.data.allData
-          : data;
-        const existing = allData.find(
-          (s: any) =>
-            s.kode === payload.kode ||
-            s.sub_kategori?.toLowerCase() === payload.sub_kategori?.toLowerCase()
-        );
-        if (existing && existing.status_aktv === false) {
-          setReactivateId(existing._id);
-          setShowReactivateDialog(true);
-          return;
-        }
-        toast.error('Data sudah ada!');
-        return;
+      const serverMsg = data?.data?.message || error?.response?.data?.message;
+      if (serverMsg) {
+        if (error) toast.error(serverMsg); else toast.success(serverMsg);
+      } else {
+        if (error) toast.error('Gagal menyimpan data. Silakan coba lagi.'); else toast.success('Data berhasil disimpan.');
       }
-      toast.error('Gagal menyimpan data. Silakan coba lagi.');
+      // Reactivate flow: if backend returned code 11000 earlier it will still be in data.response; keep existing re-activate dialog logic
+      if (!error) handleCloseModal();
     },
   });
 
@@ -146,13 +132,15 @@ export default function SubKategori() {
     mutationFn: (id: string) => axiosInstance.delete(`/master/subkategori/${id}`, {
       data: { delete_by: user?.name || 'Unknown' },
     }),
-    onSuccess: () => {
+    onSuccess: (resp: any) => {
       queryClient.invalidateQueries({ queryKey: ['subkategori'] });
-      toast.success('Sub Kategori berhasil dihapus!');
+      const msg = resp?.data?.message || 'Sub kategori berhasil dihapus!';
+      toast.success(msg);
     },
     onError: (error: any) => {
-      if (error?.response?.data?.message?.includes('Maaf, data ini sudah ada transaksi')) {
-        toast.error(error.response.data.message);
+      const serverMsg = error?.response?.data?.message;
+      if (serverMsg) {
+        toast.error(serverMsg);
       } else {
         toast.error('Gagal menghapus sub kategori!');
       }

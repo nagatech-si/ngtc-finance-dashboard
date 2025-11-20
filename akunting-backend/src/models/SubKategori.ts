@@ -22,9 +22,12 @@ const SubKategoriSchema: Schema = new Schema({
   input_date: { type: Date, default: Date.now },
   update_date: { type: Date, default: Date.now },
   delete_date: { type: Date, default: null },
+  deleted_at: { type: Date, default: null },
   input_by: { type: String, required: true },
   update_by: { type: String, default: null },
   delete_by: { type: String, default: null },
+  deleted_by: { type: String, default: null },
+  active: { type: Boolean, default: true },
 });
 
 export default mongoose.model<ISubKategori>('SubKategori', SubKategoriSchema,'tm_sub_kategori');

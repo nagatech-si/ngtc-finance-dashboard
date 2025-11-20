@@ -1,17 +1,32 @@
+// Resolve acting user from authenticated request only. Ignore client-supplied audit fields.
+const resolveUserId = (req: Request) => {
+  if (req.user && typeof req.user === 'object') {
+    return (req.user as any).name || (req.user as any).username || (req.user as any).id || (req.user as any)._id || 'system';
+  }
+  if (typeof req.user === 'string' && req.user.length > 0) return req.user;
+  return 'system';
+};
+
+// Return audit user id (prefer numeric/id fields). Used for deleted_by/deleted_at fields.
+const getAuditUserId = (req: Request) => {
+  if (req.user && typeof req.user === 'object') {
+    return String((req.user as any).id || (req.user as any)._id || (req.user as any).username || (req.user as any).name);
+  }
+  return 'system';
+};
+
 export const createKategori = async (req: Request, res: Response) => {
   try {
     const { kategori, kode } = req.body;
     if (!kategori) return res.status(400).json({ message: 'kategori required' });
-
-    let userId: string = req.body.input_by;
-    if (!userId) {
-      if (req.user && typeof req.user === 'object') {
-        userId = (req.user as any).name || (req.user as any).username || (req.user as any)._id;
-      } else if (typeof req.user === 'string') {
-        userId = req.user;
+    const userId = resolveUserId(req);
+    // Check kode uniqueness (active records)
+    if (kode) {
+      const existsKode = await Kategori.findOne({ kode, $or: [{ status_aktv: true }, { active: true }] });
+      if (existsKode) {
+        return res.status(400).json({ message: 'Kode kategori tersebut sudah digunakan. Silakan gunakan kode lain.' });
       }
     }
-    if (!userId) userId = 'system';
     const k = new Kategori({
       kategori,
       kode,
@@ -24,9 +39,39 @@ export const createKategori = async (req: Request, res: Response) => {
     });
 
     await k.save();
-    res.json(k);
+    res.status(200).json({ success: true, message: 'Data berhasil disimpan.', data: k });
   } catch (error) {
     console.error('❌ Error in createKategori:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const updateKategori = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { kategori, kode } = req.body;
+    const userId = resolveUserId(req);
+
+    const old = await Kategori.findById(id);
+    if (!old) return res.status(404).json({ message: 'Kategori not found' });
+
+    // kode uniqueness check (exclude current)
+    if (kode) {
+      const existsKode = await Kategori.findOne({ _id: { $ne: id }, kode, $or: [{ status_aktv: true }, { active: true }] });
+      if (existsKode) {
+        return res.status(400).json({ message: 'Kode kategori tersebut sudah digunakan. Silakan gunakan kode lain.' });
+      }
+    }
+
+    old.kategori = kategori ?? old.kategori;
+    old.kode = kode ?? old.kode;
+    old.update_date = new Date();
+    old.update_by = userId;
+    old.status_aktv = req.body.status_aktv ?? old.status_aktv;
+    await old.save();
+    res.status(200).json({ success: true, message: 'Data berhasil disimpan.', data: old });
+  } catch (error) {
+    console.error('❌ Error in updateKategori:', error);
     res.status(500).json({ message: 'Server error', error });
   }
 };
@@ -35,6 +80,7 @@ import mongoose from 'mongoose';
 import Kategori, { IKategori } from '../models/Kategori';
 import SubKategori, { ISubKategori } from '../models/SubKategori';
 import Akun, { IAkun } from '../models/Akun';
+import canSoftDeleteMaster from '../utils/masterDeleteHelper';
 import Transaksi from '../models/Transaksi';
 
 
@@ -54,6 +100,52 @@ export const listKategori = async (req: Request, res: Response) => {
   }
 };
 
+export const deleteKategori = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = resolveUserId(req);
+
+    const kategori = await Kategori.findById(id);
+    if (!kategori) return res.status(404).json({ message: 'Kategori not found' });
+    // 1) Check active subkategori referencing this kategori
+    const activeSubCount = await SubKategori.countDocuments({
+      kategori: kategori.kategori,
+      $or: [{ status_aktv: true }, { active: true }],
+    });
+    if (activeSubCount > 0) {
+      return res.status(400).json({ message: 'Kategori tidak dapat dihapus karena masih memiliki sub kategori yang aktif.' });
+    }
+
+    // 2) Check active akun referencing this kategori (via Akun.kategori)
+    const activeAkunCount = await Akun.countDocuments({
+      kategori: kategori.kategori,
+      $or: [{ status_aktv: true }, { active: true }],
+    });
+    if (activeAkunCount > 0) {
+      return res.status(400).json({ message: 'Kategori tidak dapat dihapus karena masih memiliki akun aktif yang terhubung.' });
+    }
+
+    // 3) Check for transactions referencing this kategori
+    const trx = await Transaksi.findOne({ kategori: { $in: [kategori.kategori, String(kategori._id)] } });
+    if (trx) {
+      return res.status(400).json({ message: 'Kategori tidak dapat dihapus karena masih terdapat transaksi yang mereferensikannya.' });
+    }
+
+    const auditUser = getAuditUserId(req);
+    kategori.status_aktv = false;
+    kategori.active = false;
+    kategori.delete_date = new Date();
+    kategori.deleted_at = new Date();
+    kategori.delete_by = auditUser;
+    kategori.deleted_by = auditUser;
+    await kategori.save();
+    res.status(200).json({ success: true, message: 'Kategori berhasil dihapus.', data: kategori });
+  } catch (error) {
+    console.error('❌ Error in deleteKategori:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
 // ...existing code...
 
 // ...existing code...
@@ -63,18 +155,18 @@ export const createSubKategori = async (req: Request, res: Response) => {
   try {
     const { sub_kategori, kode, kategori } = req.body;
     if (!sub_kategori || !kategori) return res.status(400).json({ message: 'sub_kategori & kategori required' });
-    let userId: string = req.body.input_by;
-    if (!userId) {
-      if (req.user && typeof req.user === 'object') {
-        userId = (req.user as any).name || (req.user as any).username || (req.user as any)._id;
-      } else if (typeof req.user === 'string') {
-        userId = req.user;
+    const userId = resolveUserId(req);
+
+    // 1) Check kode uniqueness among active records
+    if (kode) {
+      const kodeExists = await SubKategori.findOne({ kode, $or: [{ status_aktv: true }, { active: true }] });
+      if (kodeExists) {
+        return res.status(400).json({ message: 'Kode sub kategori tersebut sudah digunakan. Silakan gunakan kode lain.' });
       }
     }
-    if (!userId) userId = 'system';
 
-    // Cek apakah sudah ada sub kategori dengan kode/nama sama
-    const existing = await SubKategori.findOne({ sub_kategori, kode });
+    // 2) Check if same name exists (reactivate flow)
+    const existing = await SubKategori.findOne({ sub_kategori });
     if (existing) {
       if (existing.status_aktv === false) {
         // Reactivate
@@ -84,10 +176,9 @@ export const createSubKategori = async (req: Request, res: Response) => {
         existing.kategori = kategori;
         existing.input_by = userId;
         await existing.save();
-        return res.json({ success: true, message: 'SubKategori diaktifkan kembali', data: existing });
+        return res.status(200).json({ success: true, message: 'Data berhasil disimpan.', data: existing });
       } else {
-        // Sudah aktif, error duplicate
-        // Kirim semua data subkategori (aktif & non-aktif) agar frontend bisa cari yang non-aktif
+        // Already active with same name — return duplicate name error
         const allData = await SubKategori.find({});
         return res.status(400).json({ code: 11000, message: 'SubKategori sudah ada', keyValue: { sub_kategori }, allData });
       }
@@ -108,7 +199,7 @@ export const createSubKategori = async (req: Request, res: Response) => {
     });
 
     await s.save();
-    res.json(s);
+    res.status(200).json({ success: true, message: 'Data berhasil disimpan.', data: s });
   } catch (error) {
     console.error('❌ Error in createSubKategori:', error);
     res.status(500).json({ message: 'Server error', error });
@@ -150,19 +241,19 @@ export const updateSubKategori = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { sub_kategori, kode, kategori } = req.body;
-    let userId: string = req.body.input_by;
-    if (!userId) {
-      if (req.user && typeof req.user === 'object') {
-        userId = (req.user as any).name || (req.user as any).username || (req.user as any)._id;
-      } else if (typeof req.user === 'string') {
-        userId = req.user;
-      }
-    }
-    if (!userId) userId = 'system';
+    const userId = resolveUserId(req);
 
     // Ambil sub_kategori lama
     const oldSubKategori = await SubKategori.findById(id);
     if (!oldSubKategori) return res.status(404).json({ message: 'SubKategori not found' });
+
+    // kode uniqueness check (exclude current)
+    if (kode) {
+      const kodeExists = await SubKategori.findOne({ _id: { $ne: id }, kode, $or: [{ status_aktv: true }, { active: true }] });
+      if (kodeExists) {
+        return res.status(400).json({ message: 'Kode sub kategori tersebut sudah digunakan. Silakan gunakan kode lain.' });
+      }
+    }
 
     const s = await SubKategori.findByIdAndUpdate(
       id,
@@ -183,26 +274,33 @@ export const updateSubKategori = async (req: Request, res: Response) => {
 export const deleteSubKategori = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    let userId: string = req.body.input_by;
-    if (!userId) {
-      if (req.user && typeof req.user === 'object') {
-        userId = (req.user as any).name || (req.user as any).username || (req.user as any)._id;
-      } else if (typeof req.user === 'string') {
-        userId = req.user;
-      }
-    }
-    if (!userId) userId = 'system';
-
+    const userId = resolveUserId(req);
     const subkategori = await SubKategori.findById(id);
     if (!subkategori) return res.status(404).json({ message: 'SubKategori not found' });
-    // Cek apakah ada akun yang pakai sub kategori ini
-    const akunUsed = await Akun.findOne({ sub_kategori: subkategori.sub_kategori });
-    if (akunUsed) return res.status(400).json({ message: 'Maaf, data ini sudah ada transaksi/akun.' });
+    // 1) Check active akun referencing this subkategori
+    const activeAkunCount = await Akun.countDocuments({
+      sub_kategori: subkategori.sub_kategori,
+      $or: [{ status_aktv: true }, { active: true }],
+    });
+    if (activeAkunCount > 0) {
+      return res.status(400).json({ message: 'Sub kategori tidak dapat dihapus karena masih memiliki akun aktif.' });
+    }
+
+    // 2) Check transactions referencing this subkategori
+    const trx = await Transaksi.findOne({ sub_kategori: { $in: [subkategori.sub_kategori, String(subkategori._id)] } });
+    if (trx) {
+      return res.status(400).json({ message: 'Sub kategori tidak dapat dihapus karena masih terdapat transaksi yang mereferensikannya.' });
+    }
+
+    const auditUser = getAuditUserId(req);
     subkategori.status_aktv = false;
+    subkategori.active = false;
     subkategori.delete_date = new Date();
-    subkategori.delete_by = userId || 'system';
+    subkategori.deleted_at = new Date();
+    subkategori.delete_by = auditUser;
+    subkategori.deleted_by = auditUser;
     await subkategori.save();
-    res.json({ success: true, message: 'SubKategori non-aktif', data: subkategori });
+    res.status(200).json({ success: true, message: 'Sub kategori berhasil dihapus.', data: subkategori });
   } catch (error) {
     console.error('❌ Error in deleteSubKategori:', error);
     res.status(500).json({ message: 'Server error', error });
@@ -243,15 +341,15 @@ export const createAkun = async (req: Request, res: Response) => {
   try {
     const { sub_kategori, akun, kode } = req.body;
     if (!sub_kategori || !akun) return res.status(400).json({ message: 'sub_kategori & akun required' });
-    let userId: string = req.body.input_by;
-    if (!userId) {
-      if (req.user && typeof req.user === 'object') {
-        userId = (req.user as any).name || (req.user as any).username || (req.user as any)._id;
-      } else if (typeof req.user === 'string') {
-        userId = req.user;
+    const userId = resolveUserId(req);
+
+    // kode uniqueness check for akun
+    if (kode) {
+      const existsKode = await Akun.findOne({ kode, $or: [{ status_aktv: true }, { active: true }] });
+      if (existsKode) {
+        return res.status(400).json({ message: 'Kode akun tersebut sudah digunakan. Silakan gunakan kode lain.' });
       }
     }
-    if (!userId) userId = 'system';
 
     // sub_kategori dikirim sebagai _id, ambil semua relasi sub kategori
     let subKategoriNama = sub_kategori;
@@ -283,7 +381,7 @@ export const createAkun = async (req: Request, res: Response) => {
     });
 
     await a.save();
-    res.json(a);
+    res.status(200).json({ success: true, message: 'Data berhasil disimpan.', data: a });
   } catch (error) {
     console.error('\u274c Error in createAkun:', error);
     res.status(500).json({ message: 'Server error', error });
@@ -294,15 +392,7 @@ export const updateAkun = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { sub_kategori, akun, kode } = req.body;
-    let userId: string = req.body.input_by;
-    if (!userId) {
-      if (req.user && typeof req.user === 'object') {
-        userId = (req.user as any).name || (req.user as any).username || (req.user as any)._id;
-      } else if (typeof req.user === 'string') {
-        userId = req.user;
-      }
-    }
-    if (!userId) userId = 'system';
+    const userId = resolveUserId(req);
 
     // Ambil akun lama
     const oldAkun = await Akun.findById(id);
@@ -325,7 +415,7 @@ export const updateAkun = async (req: Request, res: Response) => {
     if (!a) return res.status(404).json({ message: 'Akun not found' });
     // Update relasi transaksi: ganti semua transaksi yang punya akun lama ke akun baru
     await Transaksi.updateMany({ akun: oldAkun._id }, { akun: a._id });
-    res.json(a);
+    res.status(200).json({ success: true, message: 'Data berhasil disimpan.', data: a });
   } catch (error) {
     console.error('\u274c Error in updateAkun:', error);
     res.status(500).json({ message: 'Server error', error });
@@ -335,26 +425,25 @@ export const updateAkun = async (req: Request, res: Response) => {
 export const deleteAkun = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    let userId: string = req.body.input_by;
-    if (!userId) {
-      if (req.user && typeof req.user === 'object') {
-        userId = (req.user as any).name || (req.user as any).username || (req.user as any)._id;
-      } else if (typeof req.user === 'string') {
-        userId = req.user;
-      }
-    }
-    if (!userId) userId = 'system';
+    const userId = resolveUserId(req);
 
     const akun = await Akun.findById(id);
     if (!akun) return res.status(404).json({ message: 'Akun not found' });
-    // Cek apakah ada transaksi yang pakai akun ini
-    const transaksiUsed = await Transaksi.findOne({ akun: akun._id });
-    if (transaksiUsed) return res.status(400).json({ message: 'Maaf, data ini sudah ada transaksi.' });
+    // Check transactions referencing this akun (by id or by string)
+    const trx = await Transaksi.findOne({ akun: { $in: [akun._id, String(akun._id), akun.akun, String(akun.akun)] } });
+    if (trx) {
+      return res.status(400).json({ message: 'Akun tidak dapat dihapus karena sudah digunakan di transaksi.' });
+    }
+
+    const auditUser = getAuditUserId(req);
     akun.status_aktv = false;
+    akun.active = false;
     akun.delete_date = new Date();
-    akun.delete_by = userId || 'system';
+    akun.deleted_at = new Date();
+    akun.delete_by = auditUser;
+    akun.deleted_by = auditUser;
     await akun.save();
-    res.json({ success: true, message: 'Akun non-aktif', data: akun });
+    res.status(200).json({ success: true, message: 'Akun berhasil dihapus.', data: akun });
   } catch (error) {
     console.error('❌ Error in deleteAkun:', error);
     res.status(500).json({ message: 'Server error', error });
