@@ -18,6 +18,7 @@ import Dashboard from "./pages/Dashboard";
 import Kategori from "./pages/MasterData/Kategori";
 import SubKategori from "./pages/MasterData/SubKategori";
 import Akun from "./pages/MasterData/Akun";
+import CustomDashboard from "./pages/MasterData/CustomDashboard";
 import Transaksi from "./pages/Transaksi";
 import TutupBuku from "./pages/TutupBuku";
 import NotFound from "./pages/NotFound";
@@ -77,6 +78,17 @@ const App = () => (
               <ProtectedRoute>
                 <MainLayout>
                   <Akun />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/master/custom-dashboard"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <CustomDashboard />
                 </MainLayout>
               </ProtectedRoute>
             }

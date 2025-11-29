@@ -7,20 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
   Table,
   TableBody,
   TableCell,
@@ -29,7 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ModalForm } from '@/components/ModalForm';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, X } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -40,13 +26,18 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 
-interface SubKategori {
+interface CustomDashboard {
   _id?: string;
-  sub_kategori: string;
-  kode: string;
-  kategori: string; // ObjectId
-  kategori_nama?: string;
+  title: string;
+  sub_kategories: string[];
   input_date?: string;
   update_date?: string;
   delete_date?: string | null;
@@ -55,34 +46,26 @@ interface SubKategori {
   delete_by?: string | null;
 }
 
-interface Kategori {
+interface SubKategori {
   _id: string;
+  sub_kategori: string;
+  kode: string;
   kategori: string;
 }
 
-export default function SubKategori() {
+export default function CustomDashboard() {
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [formData, setFormData] = useState<SubKategori>({
-    sub_kategori: '',
-    kode: '',
-    kategori: '',
+  const [formData, setFormData] = useState<CustomDashboard>({
+    title: '',
+    sub_kategories: [],
     input_by: '',
   });
   const { user } = useAppStore();
 
-  // Fetch categories
-  const { data: categories = [] } = useQuery({
-    queryKey: ['kategori'],
-    queryFn: async () => {
-      const response = await axiosInstance.get('/master/kategori');
-      return response.data || [];
-    },
-  });
-
-  // Fetch subkategori
-  const { data = [], isLoading, error } = useQuery({
+  // Fetch subkategori for multi-select
+  const { data: subKategories = [] } = useQuery({
     queryKey: ['subkategori'],
     queryFn: async () => {
       const response = await axiosInstance.get('/master/subkategori');
@@ -90,51 +73,56 @@ export default function SubKategori() {
     },
   });
 
+  // Fetch custom dashboards
+  const { data = [], isLoading, error } = useQuery({
+    queryKey: ['custom-dashboard'],
+    queryFn: async () => {
+      const response = await axiosInstance.get('/master/custom-dashboard');
+      return response.data || [];
+    },
+  });
+
   // Create/Update mutation
-  const [showReactivateDialog, setShowReactivateDialog] = useState(false);
-  const [reactivateId, setReactivateId] = useState<string | null>(null);
   const saveMutation = useMutation({
-    mutationFn: async (payload: SubKategori) => {
+    mutationFn: async (payload: CustomDashboard) => {
       if (editId) {
-        return axiosInstance.put(`/master/subkategori/${editId}`, {
+        return axiosInstance.put(`/master/custom-dashboard/${editId}`, {
           ...payload,
           update_by: user?.name || 'Unknown',
         });
       }
-      // Cek apakah data sudah ada dan non-aktif
-      const existing = data.find(
-        (s) => s.kode === payload.kode || s.sub_kategori.toLowerCase() === payload.sub_kategori.toLowerCase()
-      );
-      if (existing && existing.status_aktv === false) {
-        setReactivateId(existing._id);
-        setShowReactivateDialog(true);
-        return;
-      }
-      return axiosInstance.post('/master/subkategori', { sub_kategori: payload.sub_kategori, kategori: payload.kategori, input_by: payload.input_by });
+      return axiosInstance.post('/master/custom-dashboard', payload);
     },
-    onSuccess: () => { /* handled in onSettled */ },
-    onError: () => { /* handled in onSettled */ },
-    onSettled: (data: any, error: any, vars: any) => {
-      queryClient.invalidateQueries({ queryKey: ['subkategori'] });
-      const serverMsg = data?.data?.message || error?.response?.data?.message;
+    onSuccess: async (data: any, variables: any, context: any) => {
+      // Add small delay to ensure server has processed the request
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Force refetch the data
+      await queryClient.invalidateQueries({ queryKey: ['custom-dashboard'], exact: true });
+      await queryClient.refetchQueries({ queryKey: ['custom-dashboard'], exact: true });
+      
+      const serverMsg = data?.data?.message || 'Data berhasil disimpan.';
+      toast.success(serverMsg);
+      handleCloseModal();
+    },
+    onError: (error: any) => {
+      const serverMsg = error?.response?.data?.message;
       if (serverMsg) {
-        if (error) toast.error(serverMsg); else toast.success(serverMsg);
+        toast.error(serverMsg);
       } else {
-        if (error) toast.error('Gagal menyimpan data. Silakan coba lagi.'); else toast.success('Data berhasil disimpan.');
+        toast.error('Gagal menyimpan data. Silakan coba lagi.');
       }
-      // Reactivate flow: if backend returned code 11000 earlier it will still be in data.response; keep existing re-activate dialog logic
-      if (!error) handleCloseModal();
     },
   });
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => axiosInstance.delete(`/master/subkategori/${id}`, {
+    mutationFn: (id: string) => axiosInstance.delete(`/master/custom-dashboard/${id}`, {
       data: { delete_by: user?.name || 'Unknown' },
     }),
     onSuccess: (resp: any) => {
-      queryClient.invalidateQueries({ queryKey: ['subkategori'] });
-      const msg = resp?.data?.message || 'Sub kategori berhasil dihapus!';
+      queryClient.invalidateQueries({ queryKey: ['custom-dashboard'] });
+      const msg = resp?.data?.message || 'Custom Dashboard berhasil dihapus!';
       toast.success(msg);
     },
     onError: (error: any) => {
@@ -142,7 +130,7 @@ export default function SubKategori() {
       if (serverMsg) {
         toast.error(serverMsg);
       } else {
-        toast.error('Gagal menghapus sub kategori!');
+        toast.error('Gagal menghapus custom dashboard!');
       }
     },
   });
@@ -153,7 +141,7 @@ export default function SubKategori() {
     saveMutation.mutate(payload);
   };
 
-  const handleEdit = (item: SubKategori) => {
+  const handleEdit = (item: CustomDashboard) => {
     setEditId(item._id || null);
     setFormData(item);
     setModalOpen(true);
@@ -161,7 +149,6 @@ export default function SubKategori() {
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  // ...existing code...
 
   const handleDelete = (id: string) => {
     setDeleteId(id);
@@ -179,7 +166,23 @@ export default function SubKategori() {
   const handleCloseModal = () => {
     setModalOpen(false);
     setEditId(null);
-    setFormData({ sub_kategori: '', kode: '', kategori: '', input_by: '' });
+    setFormData({ title: '', sub_kategories: [], input_by: '' });
+  };
+
+  const handleSubKategoriToggle = (subKategori: string, checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      sub_kategories: checked
+        ? [...prev.sub_kategories, subKategori]
+        : prev.sub_kategories.filter(s => s !== subKategori)
+    }));
+  };
+
+  const removeSubKategori = (subKategori: string) => {
+    setFormData(prev => ({
+      ...prev,
+      sub_kategories: prev.sub_kategories.filter(s => s !== subKategori)
+    }));
   };
 
   return (
@@ -197,25 +200,25 @@ export default function SubKategori() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-              Master Sub Kategori
+              Master Custom Dashboard
             </h1>
-            <p className="text-gray-600 mt-2">Kelola sub kategori transaksi dengan mudah dan efisien</p>
+            <p className="text-gray-600 mt-2">Kelola custom dashboard dengan mudah dan efisien</p>
           </div>
           <Button
             onClick={() => setModalOpen(true)}
             className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
           >
             <Plus className="w-5 h-5 mr-2" />
-            Tambah Sub Kategori
+            Tambah Custom Dashboard
           </Button>
         </div>
+
         <div className="bg-white/50 rounded-lg overflow-hidden border-2 border-dashed border-blue-300">
           <Table className="table-fixed w-full">
             <TableHeader>
               <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-50 hover:to-indigo-50 border-b border-blue-200/50">
-                <TableHead className="w-20 px-6 py-4 font-semibold text-gray-900">Kode</TableHead>
-                <TableHead className="w-64 px-6 py-4 font-semibold text-gray-900">Sub Kategori</TableHead>
-                <TableHead className="w-48 px-6 py-4 font-semibold text-gray-900">Kategori</TableHead>
+                <TableHead className="w-64 px-6 py-4 font-semibold text-gray-900">Title</TableHead>
+                <TableHead className="w-96 px-6 py-4 font-semibold text-gray-900">Sub Kategories</TableHead>
                 <TableHead className="w-48 px-6 py-4 font-semibold text-gray-900">Input By</TableHead>
                 <TableHead className="w-32 px-6 py-4 text-right font-semibold text-gray-900">Aksi</TableHead>
               </TableRow>
@@ -223,32 +226,39 @@ export default function SubKategori() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12">
+                  <TableCell colSpan={4} className="text-center py-12">
                     <div className="flex flex-col items-center space-y-3">
                       <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                      <p className="text-gray-600 font-medium">Memuat data sub kategori...</p>
+                      <p className="text-gray-600 font-medium">Memuat data custom dashboard...</p>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12">
+                  <TableCell colSpan={4} className="text-center py-12">
                     <div className="flex flex-col items-center space-y-3">
                       <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center">
                         <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                         </svg>
                       </div>
-                      <p className="text-gray-600 font-medium">Belum ada data sub kategori</p>
+                      <p className="text-gray-600 font-medium">Belum ada data custom dashboard</p>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 data.map((item) => (
                   <TableRow key={item._id} className="hover:bg-blue-50/50 transition-colors duration-200 border-b border-gray-100/50">
-                    <TableCell className="w-20 px-6 py-4 font-semibold text-gray-900">{item.kode}</TableCell>
-                    <TableCell className="w-64 px-6 py-4 font-medium text-gray-900">{item.sub_kategori}</TableCell>
-                    <TableCell className="w-48 px-6 py-4 text-gray-700">{item.kategori}</TableCell>
+                    <TableCell className="w-64 px-6 py-4 font-semibold text-gray-900">{item.title}</TableCell>
+                    <TableCell className="w-96 px-6 py-4 text-gray-700">
+                      <div className="flex flex-wrap gap-1">
+                        {item.sub_kategories.map((sub, index) => (
+                          <Badge key={index} variant="secondary" className="text-xs">
+                            {sub}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
                     <TableCell className="w-48 px-6 py-4 text-gray-700">{item.input_by}</TableCell>
                     <TableCell className="w-32 px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
@@ -277,39 +287,89 @@ export default function SubKategori() {
           </Table>
         </div>
 
-        <ModalForm open={modalOpen} onOpenChange={handleCloseModal} title={editId ? 'Edit Sub Kategori' : 'Tambah Sub Kategori'}>
+        <ModalForm open={modalOpen} onOpenChange={handleCloseModal} title={editId ? 'Edit Custom Dashboard' : 'Tambah Custom Dashboard'}>
           <form onSubmit={handleSubmit} className="space-y-6 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="kategori" className="text-sm font-semibold text-gray-700">Kategori</Label>
-              <Select
-                value={formData.kategori}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, kategori: value })
-                }
-              >
-                <SelectTrigger className="border-2 border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all duration-200">
-                  <SelectValue placeholder="Pilih kategori" />
-                </SelectTrigger>
-                <SelectContent className="bg-white/95 backdrop-blur-sm border-gray-200 shadow-xl">
-                  {categories.map((cat) => (
-                    <SelectItem key={cat._id} value={cat.kategori} className="hover:bg-blue-50 focus:bg-blue-50">
-                      {cat.kategori}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="sub_kategori" className="text-sm font-semibold text-gray-700">Nama Sub Kategori</Label>
+              <Label htmlFor="title" className="text-sm font-semibold text-gray-700">Title</Label>
               <Input
-                id="sub_kategori"
-                value={formData.sub_kategori}
-                onChange={(e) => setFormData({ ...formData, sub_kategori: e.target.value })}
-                placeholder="Masukkan nama sub kategori"
-                className="border-2 border-gray-200  focus:ring-blue-100 transition-all duration-200"
+                id="title"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="Masukkan title custom dashboard"
+                className="border-2 border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all duration-200"
                 required
               />
             </div>
+
+            <div className="grid gap-2">
+              <Label className="text-sm font-semibold text-gray-700">Sub Kategories</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start border-2 border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all duration-200"
+                  >
+                    {formData.sub_kategories.length === 0
+                      ? "Pilih sub kategories..."
+                      : `${formData.sub_kategories.length} sub kategori dipilih`
+                    }
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0 max-h-64 overflow-hidden" align="start">
+                  <div className="p-2">
+                    <div 
+                      className="space-y-2 max-h-56 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-300 scrollbar-track-blue-100"
+                      onWheel={(e) => {
+                        e.stopPropagation();
+                        const target = e.currentTarget;
+                        const scrollTop = target.scrollTop;
+                        const scrollHeight = target.scrollHeight;
+                        const height = target.clientHeight;
+                        
+                        // Prevent default only if scrolling would go beyond bounds
+                        if ((scrollTop === 0 && e.deltaY < 0) || 
+                            (scrollTop >= scrollHeight - height && e.deltaY > 0)) {
+                          e.preventDefault();
+                        }
+                      }}
+                    >
+                      {subKategories.map((sub) => (
+                        <div key={sub._id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={sub._id}
+                            checked={formData.sub_kategories.includes(sub.sub_kategori)}
+                            onCheckedChange={(checked) =>
+                              handleSubKategoriToggle(sub.sub_kategori, checked as boolean)
+                            }
+                          />
+                          <Label
+                            htmlFor={sub._id}
+                            className="text-sm font-normal cursor-pointer flex-1"
+                          >
+                            {sub.kategori} - {sub.sub_kategori}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {formData.sub_kategories.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {formData.sub_kategories.map((sub, index) => (
+                    <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                      {sub}
+                      <X
+                        className="w-3 h-3 cursor-pointer hover:text-red-500"
+                        onClick={() => removeSubKategori(sub)}
+                      />
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-end gap-3 pt-4">
               <Button
                 type="button"
@@ -323,7 +383,7 @@ export default function SubKategori() {
                 type="submit"
                 className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
               >
-                {editId ? 'Simpan Perubahan' : 'Tambah Sub Kategori'}
+                {editId ? 'Simpan Perubahan' : 'Tambah Custom Dashboard'}
               </Button>
             </div>
           </form>
@@ -336,7 +396,7 @@ export default function SubKategori() {
                 Konfirmasi Hapus
               </AlertDialogTitle>
               <AlertDialogDescription className="text-gray-600 text-base">
-                Yakin ingin menghapus sub kategori ini? Tindakan ini tidak dapat dibatalkan.
+                Yakin ingin menghapus custom dashboard ini? Tindakan ini tidak dapat dibatalkan.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="gap-3">
@@ -347,45 +407,7 @@ export default function SubKategori() {
                 onClick={confirmDelete}
                 className="bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
               >
-                Hapus Sub Kategori
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        <AlertDialog open={showReactivateDialog} onOpenChange={setShowReactivateDialog}>
-          <AlertDialogContent className="bg-white/95 backdrop-blur-sm shadow-2xl">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-                Data Sudah Ada
-              </AlertDialogTitle>
-              <AlertDialogDescription className="text-gray-600 text-base">
-                Data ini sudah ada, aktifkan kembali?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="gap-3">
-              <AlertDialogCancel
-                onClick={() => setShowReactivateDialog(false)}
-                className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
-              >
-                Batal
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={async () => {
-                  if (reactivateId) {
-                    await axiosInstance.put(`/master/subkategori/${reactivateId}`, {
-                      status_aktv: true,
-                      update_by: user?.name || 'Unknown',
-                    });
-                    await queryClient.invalidateQueries({ queryKey: ['subkategori'] });
-                    setShowReactivateDialog(false);
-                    handleCloseModal();
-                    toast.success('Sub Kategori diaktifkan kembali!');
-                  }
-                }}
-                className="bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
-              >
-                Aktifkan Kembali
+                Hapus Custom Dashboard
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

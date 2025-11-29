@@ -38,13 +38,13 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
 
-    --sidebar-background: 160 84% 39%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 160 90% 35%;
+    --sidebar-background: 215 28% 17%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 160 84% 39%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 160 70% 45%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 160 50% 30%;
+    --sidebar-accent: 215 20% 25%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 215 20% 25%;
     --sidebar-ring: 160 84% 39%;
 
     --chart-1: 160 84% 39%;
@@ -83,13 +83,13 @@ All colors MUST be HSL.
     --input: 215 20% 25%;
     --ring: 160 84% 39%;
 
-    --sidebar-background: 160 84% 39%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 160 90% 35%;
+    --sidebar-background: 215 28% 17%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 160 84% 39%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 160 70% 45%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 160 50% 30%;
+    --sidebar-accent: 215 20% 25%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 215 20% 25%;
     --sidebar-ring: 160 84% 39%;
 
     --chart-1: 160 84% 39%;
@@ -108,4 +108,8 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
   }
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
 }

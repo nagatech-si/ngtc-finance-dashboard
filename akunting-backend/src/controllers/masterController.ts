@@ -15,21 +15,25 @@ const getAuditUserId = (req: Request) => {
   return 'system';
 };
 
+// Helper function to generate next kode (increment from last active record)
+const generateNextKode = async (model: any): Promise<string> => {
+  const lastDoc = await model.findOne({ $or: [{ status_aktv: true }, { active: true }] }).sort({ kode: -1 });
+  if (!lastDoc || !lastDoc.kode) return '001';
+  const lastNum = parseInt(lastDoc.kode, 10);
+  if (isNaN(lastNum)) return '001';
+  const nextNum = lastNum + 1;
+  return nextNum.toString().padStart(3, '0');
+};
+
 export const createKategori = async (req: Request, res: Response) => {
   try {
-    const { kategori, kode } = req.body;
+    const { kategori } = req.body;
     if (!kategori) return res.status(400).json({ message: 'kategori required' });
     const userId = resolveUserId(req);
-    // Check kode uniqueness (active records)
-    if (kode) {
-      const existsKode = await Kategori.findOne({ kode, $or: [{ status_aktv: true }, { active: true }] });
-      if (existsKode) {
-        return res.status(400).json({ message: 'Kode kategori tersebut sudah digunakan. Silakan gunakan kode lain.' });
-      }
-    }
+    const finalKode = await generateNextKode(Kategori);
     const k = new Kategori({
       kategori,
-      kode,
+      kode: finalKode,
       input_date: new Date(),
       update_date: new Date(),
       delete_date: null,
@@ -80,6 +84,7 @@ import mongoose from 'mongoose';
 import Kategori, { IKategori } from '../models/Kategori';
 import SubKategori, { ISubKategori } from '../models/SubKategori';
 import Akun, { IAkun } from '../models/Akun';
+import CustomDashboard, { ICustomDashboard } from '../models/CustomDashboard';
 import canSoftDeleteMaster from '../utils/masterDeleteHelper';
 import Transaksi from '../models/Transaksi';
 
@@ -133,11 +138,8 @@ export const deleteKategori = async (req: Request, res: Response) => {
 
     const auditUser = getAuditUserId(req);
     kategori.status_aktv = false;
-    kategori.active = false;
     kategori.delete_date = new Date();
-    kategori.deleted_at = new Date();
     kategori.delete_by = auditUser;
-    kategori.deleted_by = auditUser;
     await kategori.save();
     res.status(200).json({ success: true, message: 'Kategori berhasil dihapus.', data: kategori });
   } catch (error) {
@@ -153,41 +155,15 @@ export const deleteKategori = async (req: Request, res: Response) => {
 // ==================== SUBKATEGORI ====================
 export const createSubKategori = async (req: Request, res: Response) => {
   try {
-    const { sub_kategori, kode, kategori } = req.body;
+    const { sub_kategori, kategori } = req.body;
     if (!sub_kategori || !kategori) return res.status(400).json({ message: 'sub_kategori & kategori required' });
     const userId = resolveUserId(req);
-
-    // 1) Check kode uniqueness among active records
-    if (kode) {
-      const kodeExists = await SubKategori.findOne({ kode, $or: [{ status_aktv: true }, { active: true }] });
-      if (kodeExists) {
-        return res.status(400).json({ message: 'Kode sub kategori tersebut sudah digunakan. Silakan gunakan kode lain.' });
-      }
-    }
-
-    // 2) Check if same name exists (reactivate flow)
-    const existing = await SubKategori.findOne({ sub_kategori });
-    if (existing) {
-      if (existing.status_aktv === false) {
-        // Reactivate
-        existing.status_aktv = true;
-        existing.update_date = new Date();
-        existing.delete_date = null;
-        existing.kategori = kategori;
-        existing.input_by = userId;
-        await existing.save();
-        return res.status(200).json({ success: true, message: 'Data berhasil disimpan.', data: existing });
-      } else {
-        // Already active with same name — return duplicate name error
-        const allData = await SubKategori.find({});
-        return res.status(400).json({ code: 11000, message: 'SubKategori sudah ada', keyValue: { sub_kategori }, allData });
-      }
-    }
+    const finalKode = await generateNextKode(SubKategori);
 
     // Jika belum ada, insert baru
     const s = new SubKategori({
       sub_kategori,
-      kode,
+      kode: finalKode,
       kategori,
       status_aktv: true,
       input_date: new Date(),
@@ -294,11 +270,8 @@ export const deleteSubKategori = async (req: Request, res: Response) => {
 
     const auditUser = getAuditUserId(req);
     subkategori.status_aktv = false;
-    subkategori.active = false;
     subkategori.delete_date = new Date();
-    subkategori.deleted_at = new Date();
     subkategori.delete_by = auditUser;
-    subkategori.deleted_by = auditUser;
     await subkategori.save();
     res.status(200).json({ success: true, message: 'Sub kategori berhasil dihapus.', data: subkategori });
   } catch (error) {
@@ -339,17 +312,10 @@ export const listAkun = async (req: Request, res: Response) => {
 
 export const createAkun = async (req: Request, res: Response) => {
   try {
-    const { sub_kategori, akun, kode } = req.body;
+    const { sub_kategori, akun } = req.body;
     if (!sub_kategori || !akun) return res.status(400).json({ message: 'sub_kategori & akun required' });
     const userId = resolveUserId(req);
-
-    // kode uniqueness check for akun
-    if (kode) {
-      const existsKode = await Akun.findOne({ kode, $or: [{ status_aktv: true }, { active: true }] });
-      if (existsKode) {
-        return res.status(400).json({ message: 'Kode akun tersebut sudah digunakan. Silakan gunakan kode lain.' });
-      }
-    }
+    const finalKode = await generateNextKode(Akun);
 
     // sub_kategori dikirim sebagai _id, ambil semua relasi sub kategori
     let subKategoriNama = sub_kategori;
@@ -371,7 +337,7 @@ export const createAkun = async (req: Request, res: Response) => {
       sub_kategori_kode: subKategoriKode,
       kategori: kategoriNama,
       akun,
-      kode,
+      kode: finalKode,
       input_date: new Date(),
       update_date: new Date(),
       delete_date: null,
@@ -437,15 +403,111 @@ export const deleteAkun = async (req: Request, res: Response) => {
 
     const auditUser = getAuditUserId(req);
     akun.status_aktv = false;
-    akun.active = false;
     akun.delete_date = new Date();
-    akun.deleted_at = new Date();
     akun.delete_by = auditUser;
-    akun.deleted_by = auditUser;
     await akun.save();
     res.status(200).json({ success: true, message: 'Akun berhasil dihapus.', data: akun });
   } catch (error) {
     console.error('❌ Error in deleteAkun:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// ==================== CUSTOM DASHBOARD ====================
+
+export const listCustomDashboard = async (req: Request, res: Response) => {
+  try {
+    let filter = {};
+    if (!req.query.all) {
+      filter = { status_aktv: true };
+    };
+    const list = await CustomDashboard.find(filter).sort({ title: 1 });
+    res.json(list);
+  } catch (error) {
+    console.error('❌ Error in listCustomDashboard:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const createCustomDashboard = async (req: Request, res: Response) => {
+  try {
+    const { title, sub_kategories } = req.body;
+    if (!title || !sub_kategories || !Array.isArray(sub_kategories)) {
+      return res.status(400).json({ message: 'title dan sub_kategories (array) required' });
+    }
+    const userId = resolveUserId(req);
+
+    // Check title uniqueness (active records)
+    const existsTitle = await CustomDashboard.findOne({ title, $or: [{ status_aktv: true }, { active: true }] });
+    if (existsTitle) {
+      return res.status(400).json({ message: 'Title custom dashboard tersebut sudah digunakan. Silakan gunakan title lain.' });
+    }
+
+    const cd = new CustomDashboard({
+      title,
+      sub_kategories,
+      input_date: new Date(),
+      update_date: new Date(),
+      delete_date: null,
+      input_by: userId,
+      update_by: null,
+      delete_by: null,
+    });
+
+    await cd.save();
+    res.status(200).json({ success: true, message: 'Data berhasil disimpan.', data: cd });
+  } catch (error) {
+    console.error('❌ Error in createCustomDashboard:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const updateCustomDashboard = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { title, sub_kategories } = req.body;
+    const userId = resolveUserId(req);
+
+    const old = await CustomDashboard.findById(id);
+    if (!old) return res.status(404).json({ message: 'Custom Dashboard not found' });
+
+    // title uniqueness check (exclude current)
+    if (title) {
+      const existsTitle = await CustomDashboard.findOne({ _id: { $ne: id }, title, $or: [{ status_aktv: true }, { active: true }] });
+      if (existsTitle) {
+        return res.status(400).json({ message: 'Title custom dashboard tersebut sudah digunakan. Silakan gunakan title lain.' });
+      }
+    }
+
+    old.title = title ?? old.title;
+    old.sub_kategories = sub_kategories ?? old.sub_kategories;
+    old.update_date = new Date();
+    old.update_by = userId;
+    old.status_aktv = req.body.status_aktv ?? old.status_aktv;
+    await old.save();
+    res.status(200).json({ success: true, message: 'Data berhasil disimpan.', data: old });
+  } catch (error) {
+    console.error('❌ Error in updateCustomDashboard:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const deleteCustomDashboard = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = resolveUserId(req);
+
+    const cd = await CustomDashboard.findById(id);
+    if (!cd) return res.status(404).json({ message: 'Custom Dashboard not found' });
+
+    const auditUser = getAuditUserId(req);
+    cd.status_aktv = false;
+    cd.delete_date = new Date();
+    cd.delete_by = auditUser;
+    await cd.save();
+    res.status(200).json({ success: true, message: 'Custom Dashboard berhasil dihapus.', data: cd });
+  } catch (error) {
+    console.error('❌ Error in deleteCustomDashboard:', error);
     res.status(500).json({ message: 'Server error', error });
   }
 };

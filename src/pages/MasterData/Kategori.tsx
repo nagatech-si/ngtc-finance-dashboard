@@ -86,7 +86,7 @@ export default function Kategori() {
         setShowReactivateDialog(true);
         return;
       }
-      return axiosInstance.post('/master/kategori', payload);
+      return axiosInstance.post('/master/kategori', { kategori: payload.kategori, input_by: payload.input_by });
     },
     onSuccess: () => {
       return; // handled in onSettled
@@ -162,119 +162,193 @@ export default function Kategori() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Master Kategori</h1>
-        <Button onClick={() => setModalOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" /> Tambah Kategori
-        </Button>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 relative overflow-hidden">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] -z-10" />
+      <div className="absolute top-0 right-0 -z-10">
+        <div className="w-72 h-72 bg-gradient-to-bl from-blue-400/20 to-indigo-600/20 rounded-full blur-3xl" />
+      </div>
+      <div className="absolute bottom-0 left-0 -z-10">
+        <div className="w-96 h-96 bg-gradient-to-tr from-indigo-400/20 to-purple-600/20 rounded-full blur-3xl" />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Daftar Kategori</CardTitle>
-          <CardDescription>Manajemen kategori transaksi</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table className="table-fixed w-full">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-20 px-4 py-2">Kode</TableHead>
-                <TableHead className="w-64 px-4 py-2">Kategori</TableHead>
-                <TableHead className="w-48 px-4 py-2">Input By</TableHead>
-                <TableHead className="w-32 px-4 py-2 text-right">Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8">Loading...</TableCell>
-                </TableRow>
-              ) : kategoriList.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8">Belum ada data</TableCell>
-                </TableRow>
-              ) : (
-                kategoriList.map((item) => (
-                  <TableRow key={item._id}>
-                    <TableCell className="w-20 px-4 py-2 font-medium">{item.kode}</TableCell>
-                    <TableCell className="w-64 px-4 py-2 font-semibold">{item.kategori}</TableCell>
-                    <TableCell className="w-48 px-4 py-2">{item.input_by}</TableCell>
-                    <TableCell className="w-32 px-4 py-2 text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => handleEdit(item)}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button variant="destructive" size="sm" onClick={() => item._id && handleDelete(item._id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <div className="container mx-auto px-6 py-8 space-y-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+              Master Kategori
+            </h1>
+            <p className="text-gray-600 mt-2">Kelola kategori transaksi dengan mudah dan efisien</p>
+          </div>
+          <Button
+            onClick={() => setModalOpen(true)}
+            className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Tambah Kategori
+          </Button>
+        </div>
 
+        <div className="bg-white/50 rounded-lg overflow-hidden border-2 border-dashed border-blue-200">
+              <Table className="table-fixed w-full">
+                <TableHeader>
+                  <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-50 hover:to-indigo-50 border-b border-blue-200/50">
+                    <TableHead className="w-20 px-6 py-4 font-semibold text-gray-900">Kode</TableHead>
+                    <TableHead className="w-64 px-6 py-4 font-semibold text-gray-900">Kategori</TableHead>
+                    <TableHead className="w-48 px-6 py-4 font-semibold text-gray-900">Input By</TableHead>
+                    <TableHead className="w-32 px-6 py-4 text-right font-semibold text-gray-900">Aksi</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-12">
+                        <div className="flex flex-col items-center space-y-3">
+                          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                          <p className="text-gray-600 font-medium">Memuat data kategori...</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : kategoriList.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-12">
+                        <div className="flex flex-col items-center space-y-3">
+                          <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center">
+                            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                          </div>
+                          <p className="text-gray-600 font-medium">Belum ada data kategori</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    kategoriList.map((item) => (
+                      <TableRow key={item._id} className="hover:bg-blue-50/50 transition-colors duration-200 border-b border-gray-100/50">
+                        <TableCell className="w-20 px-6 py-4 font-semibold text-gray-900">{item.kode}</TableCell>
+                        <TableCell className="w-64 px-6 py-4 font-medium text-gray-900">{item.kategori}</TableCell>
+                        <TableCell className="w-48 px-6 py-4 text-gray-700">{item.input_by}</TableCell>
+                        <TableCell className="w-32 px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(item)}
+                              className="border-blue-300 hover:bg-blue-50 hover:border-blue-400 transition-all duration-200"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => item._id && handleDelete(item._id)}
+                              className="border-red-300 hover:bg-red-50 hover:border-red-400 text-red-600 hover:text-red-700 transition-all duration-200"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
       <ModalForm open={modalOpen} onOpenChange={handleCloseModal} title={editId ? 'Edit Kategori' : 'Tambah Kategori'}>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="kode">Kode</Label>
-            <Input id="kode" value={formData.kode} onChange={e => setFormData({...formData, kode: e.target.value})} required />
+        <form onSubmit={handleSubmit} className="space-y-6 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="kategori" className="text-sm font-semibold text-gray-700">Nama Kategori</Label>
+            <Input
+              id="kategori"
+              value={formData.kategori}
+              onChange={e => setFormData({...formData, kategori: e.target.value})}
+              placeholder="Masukkan nama kategori"
+              className="border-2 border-gray-200  transition-all duration-200"
+              required
+            />
           </div>
-          <div>
-            <Label htmlFor="kategori">Kategori</Label>
-            <Input id="kategori" value={formData.kategori} onChange={e => setFormData({...formData, kategori: e.target.value})} required />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={handleCloseModal}>Batal</Button>
-            <Button type="submit">{editId ? 'Update' : 'Simpan'}</Button>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCloseModal}
+              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            >
+              Batal
+            </Button>
+            <Button
+              type="submit"
+              className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+            >
+              {editId ? 'Simpan Perubahan' : 'Tambah Kategori'}
+            </Button>
           </div>
         </form>
       </ModalForm>
 
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
       <AlertDialog open={showReactivateDialog} onOpenChange={setShowReactivateDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-white/95 backdrop-blur-sm border-blue-300 shadow-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Data sudah ada</AlertDialogTitle>
-            <AlertDialogDescription>
-              Data ini sudah ada, aktvkan kembali?
+            <AlertDialogTitle className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+              Data Sudah Ada
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600 text-base">
+              Data ini sudah ada, aktifkan kembali?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowReactivateDialog(false)}>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => {
-              if (reactivateId) {
-                await axiosInstance.put(`/master/kategori/${reactivateId}`, {
-                  status_aktv: true,
-                  update_by: user?.name || 'Unknown',
-                });
-                await queryClient.invalidateQueries({ queryKey: ['kategori'] });
-                await queryClient.invalidateQueries({ queryKey: ['kategori-all'] });
-                setShowReactivateDialog(false);
-                handleCloseModal();
-                toast.success('Kategori diaktifkan kembali!');
-              }
-            }}>OK</AlertDialogAction>
+          <AlertDialogFooter className="gap-3">
+            <AlertDialogCancel
+              onClick={() => setShowReactivateDialog(false)}
+              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            >
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (reactivateId) {
+                  await axiosInstance.put(`/master/kategori/${reactivateId}`, {
+                    status_aktv: true,
+                    update_by: user?.name || 'Unknown',
+                  });
+                  await queryClient.invalidateQueries({ queryKey: ['kategori'] });
+                  await queryClient.invalidateQueries({ queryKey: ['kategori-all'] });
+                  setShowReactivateDialog(false);
+                  handleCloseModal();
+                  toast.success('Kategori diaktifkan kembali!');
+                }
+              }}
+              className="bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+            >
+              Aktifkan Kembali
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-        <AlertDialogContent>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="bg-white/95 backdrop-blur-sm shadow-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
-            <AlertDialogDescription>
-              Yakin ingin menghapus kategori ini?
+            <AlertDialogTitle className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+              Konfirmasi Hapus
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600 text-base">
+              Yakin ingin menghapus kategori ini? Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>OK</AlertDialogAction>
+          <AlertDialogFooter className="gap-3">
+            <AlertDialogCancel className="border-gray-300 hover:bg-gray-50 transition-all duration-200">
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+            >
+              Hapus Kategori
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 }

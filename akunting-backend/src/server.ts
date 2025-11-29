@@ -8,13 +8,14 @@ import authRoutes from './routes/authRoutes';
 import transaksiRoutes from './routes/transaksiRoutes';
 import dashboardRoutes from './routes/dashboardRoutes';
 import masterRoutes from './routes/masterRoutes';
+import fiscalRoutes from './routes/fiscalRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // CORS configuration
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000','http://localhost:8080'],
+  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -39,7 +40,6 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/transaksi', transaksiRoutes);
 app.use('/api/dashboard', dashboardRoutes);
-import fiscalRoutes from './routes/fiscalRoutes';
 app.use('/api/master', masterRoutes);
 app.use('/api/fiscal', fiscalRoutes);
 
@@ -60,3 +60,5 @@ connectDB().then(() => {
   console.error('❌ Failed to connect DB', err);
   process.exit(1);
 });
+
+

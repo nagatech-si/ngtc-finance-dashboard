@@ -65,9 +65,9 @@ export function ChartDonut({ data, totalKategori }: ChartDonutProps) {
             data={data}
             cx="50%"
             cy="50%"
-            innerRadius={80}
+            innerRadius={60}
             outerRadius={120}
-            paddingAngle={5}
+            paddingAngle={1}
             dataKey="value"
             onMouseEnter={handlePieEnter}
             onMouseLeave={handlePieLeave}
@@ -78,7 +78,13 @@ export function ChartDonut({ data, totalKategori }: ChartDonutProps) {
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
-          <Legend />
+          <Legend layout="horizontal"
+          verticalAlign="top"
+          align="left"
+          iconSize={12}
+          fontSize={10}
+          wrapperStyle={{fontSize: "12px"}}
+           />
           <Tooltip content={<CustomTooltip />} />
         </PieChart>
         {/* Center label for total tahunan kategori dihilangkan */}

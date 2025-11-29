@@ -1,0 +1,155 @@
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, Cell, LabelList } from 'recharts';
+
+interface SubKategori {
+  sub_kategori: string;
+  total: number;
+}
+
+interface ChartData {
+  name: string; // kategori
+  value: number; // total kategori
+  subs?: SubKategori[];
+}
+
+interface ChartBarProps {
+  data: ChartData[];
+  totalKategori?: number;
+}
+
+const COLORS = [
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))',
+];
+
+export function ChartBar({ data, totalKategori }: ChartBarProps) {
+  function CustomTooltip({ active, payload, label }: {
+    active?: boolean;
+    payload?: Array<{
+      payload: {
+        name: string;
+        value: number;
+      };
+    }>;
+    label?: string;
+  }) {
+    if (active && payload && payload.length) {
+      const sub = payload[0].payload;
+      let percent = '0.00';
+      if (typeof totalKategori === 'number' && totalKategori > 0 && typeof sub.value === 'number') {
+        percent = ((sub.value / totalKategori) * 100).toFixed(2);
+      }
+      return (
+        <div style={{ background: 'white', border: '1px solid #eee', padding: 12, minWidth: 180 }}>
+          <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{sub.name}</div>
+          <div>Nominal: {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(sub.value)}</div>
+          <div>Persentase: {percent}%</div>
+        </div>
+      );
+    }
+    return null;
+  }
+
+        const barSize = data.length < 4 ? 80 : 80;
+
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <ResponsiveContainer width="100%" height={400}>
+        <BarChart
+          data={data}
+          margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+        >
+          <XAxis
+            dataKey="name"
+            textAnchor="center"
+            fontSize={12}
+            interval={0}
+            tick={({ x, y, payload, index }) => {
+              const barCenter = x;
+              const text = payload.value;
+              const maxWidth = 80; // Maximum width for text before wrapping
+              
+              // Function to wrap text
+              const wrapText = (text: string, maxWidth: number) => {
+                const words = text.split(' ');
+                const lines: string[] = [];
+                let currentLine = '';
+                
+                words.forEach(word => {
+                  const testLine = currentLine + (currentLine ? ' ' : '') + word;
+                  // Rough estimate: 8px per character
+                  if (testLine.length * 8 > maxWidth && currentLine) {
+                    lines.push(currentLine);
+                    currentLine = word;
+                  } else {
+                    currentLine = testLine;
+                  }
+                });
+                
+                if (currentLine) {
+                  lines.push(currentLine);
+                }
+                
+                return lines;
+              };
+              
+              const lines = wrapText(text, maxWidth);
+              
+              return (
+                <g>
+                  {lines.map((line, lineIndex) => (
+                    <text
+                      key={lineIndex}
+                      x={barCenter}
+                      y={y + 16 + (lineIndex * 14)} // 14px line height
+                      textAnchor="middle"
+                      fontSize={11}
+                      fontWeight={600}
+                      fill="#374151"
+                    >
+                      {line}
+                    </text>
+                  ))}
+                </g>
+              );
+            }}
+          />
+          <YAxis
+            tickFormatter={(value) => new Intl.NumberFormat('id-ID', {
+              notation: 'compact',
+              compactDisplay: 'short'
+            }).format(value)}
+            fontSize={12}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Bar
+            dataKey="value"
+            radius={[4, 4, 0, 0]}
+            barSize={barSize}
+          >
+            {data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            ))}
+            <LabelList
+              dataKey="value"
+              position="top"
+              formatter={(value: number) => new Intl.NumberFormat('id-ID', {
+                notation: 'compact',
+                compactDisplay: 'short'
+              }).format(value)}
+              style={{
+                fontSize: 12,
+                fill: '#374151',
+                fontWeight: 600,
+                textShadow: '0 1px 2px rgba(255,255,255,0.8)'
+              }}
+            />
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}

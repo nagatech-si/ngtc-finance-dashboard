@@ -16,9 +16,11 @@ interface ModalFormProps {
 export function ModalForm({ open, onOpenChange, title, children }: ModalFormProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md bg-white/95 backdrop-blur-sm">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+            {title}
+          </DialogTitle>
         </DialogHeader>
         {children}
       </DialogContent>

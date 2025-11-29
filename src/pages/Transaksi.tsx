@@ -35,6 +35,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Plus } from 'lucide-react';
+import { log } from 'console';
 
 interface Transaksi {
   _id?: string;
@@ -86,15 +87,23 @@ export default function Transaksi() {
   }, [fiscalYear]);
       const [editModalOpen, setEditModalOpen] = useState(false);
       const [editData, setEditData] = useState<any>(null);
+      const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+      const [deleteData, setDeleteData] = useState<any>(null);
 
       // Handler edit transaksi (open modal) for flattened row
       const handleEdit = (row: any) => {
+        // Ensure bulan fiskal matches exactly with fiscalMonthsData
+        const matchedBulan = fiscalMonthsData?.find((bulan: string) => bulan === row.bulan) || row.bulan;
+
+        const formattedValue = formatNumberInput(row.nilai.toString());
+        setEditFormattedNilai(formattedValue);
+
         setEditData({
           id: row.parentId || row._id,
           kategori: row.kategori,
           sub_kategori: row.sub_kategori,
           akun: row.akun,
-          bulan: row.bulan,
+          bulan: matchedBulan,
           nilai: row.nilai,
           input_by: row.input_by,
         });
@@ -121,13 +130,23 @@ export default function Transaksi() {
         }
       };
 
-      // Handler hapus transaksi bulanan
-      const handleDelete = async (row: any) => {
+      // Handler hapus transaksi bulanan - open confirmation dialog
+      const handleDelete = (row: any) => {
+        setDeleteData(row);
+        setDeleteDialogOpen(true);
+      };
+
+      // Handler konfirmasi hapus
+      const handleConfirmDelete = async () => {
+        if (!deleteData) return;
+
         try {
-          const parentId = row.parentId || row._id;
-          await axiosInstance.delete(`/transaksi/${parentId}/bulan/${row.bulan}`);
+          const parentId = deleteData.parentId || deleteData._id;
+          await axiosInstance.delete(`/transaksi/${parentId}/bulan/${deleteData.bulan}`);
           queryClient.invalidateQueries({ queryKey: ['transaksi'] });
           toast.success('Transaksi berhasil dihapus!');
+          setDeleteDialogOpen(false);
+          setDeleteData(null);
         } catch {
           toast.error('Gagal menghapus transaksi.');
         }
@@ -144,6 +163,10 @@ export default function Transaksi() {
     nilai: 0,
     input_by: '',
   });
+
+  // Formatted input values for display
+  const [formattedNilai, setFormattedNilai] = useState('');
+  const [editFormattedNilai, setEditFormattedNilai] = useState('');
 
   // Persist selected bulan per fiscal year in localStorage so refresh keeps selection
   const selectedMonthKey = `transaksi_selected_bulan_${fiscalYear}`;
@@ -230,6 +253,22 @@ export default function Transaksi() {
       })
     : [];
 
+  // Filter untuk edit modal
+  const editFilteredSubCategories = editData?.kategori
+    ? subCategories.filter((sub) => sub.kategori === editData.kategori)
+    : [];
+
+  const editFilteredAccounts = editData?.sub_kategori && editData?.kategori
+    ? accounts.filter((acc) => {
+        const selectedSubKategori = subCategories.find((sk) => sk.sub_kategori === editData.sub_kategori);
+        return (
+          acc.sub_kategori === editData.sub_kategori &&
+          acc.kategori === editData.kategori &&
+          acc.sub_kategori_kode === selectedSubKategori?.kode
+        );
+      })
+    : [];
+
   // Fetch transaksi (paginated, flattened rows)
   const { data: transaksiResp, isLoading, error } = useQuery({
     queryKey: ['transaksi', page, pageSize, fiscalYear],
@@ -263,6 +302,7 @@ export default function Transaksi() {
         nilai: 0,
         input_by: '',
       });
+      setFormattedNilai('');
     },
     onError: () => {
       toast.error('Gagal menyimpan transaksi. Silakan coba lagi.');
@@ -294,107 +334,53 @@ export default function Transaksi() {
     }).format(value);
   };
 
+  // Format number for input display (Indonesian format: 100.000)
+  const formatNumberInput = (value: string) => {
+    // Remove all non-numeric characters
+    const numericValue = value.replace(/[^\d]/g, '');
+    // Format with dots as thousand separators
+    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
+  // Parse formatted input back to number
+  const parseFormattedInput = (value: string) => {
+    return parseFloat(value.replace(/\./g, '')) || 0;
+  };
+
   return (
-    <div className="space-y-6">
-      {/* Modal Edit Transaksi */}
-      {editModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-lg font-bold mb-4">Edit Transaksi</h2>
-            <div className="space-y-3">
-              <Label>Kategori</Label>
-              <Select
-                value={editData.kategori}
-                onValueChange={value => setEditData({ ...editData, kategori: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih kategori" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat._id} value={cat.kategori}>
-                      {cat.kategori}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Label>Sub Kategori</Label>
-              <Select
-                value={editData.sub_kategori}
-                onValueChange={value => setEditData({ ...editData, sub_kategori: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih sub kategori" />
-                </SelectTrigger>
-                <SelectContent>
-                  {subCategories.map((sub) => (
-                    <SelectItem key={sub._id} value={sub.sub_kategori}>
-                      {sub.sub_kategori}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Label>Akun</Label>
-              <Select
-                value={editData.akun}
-                onValueChange={value => setEditData({ ...editData, akun: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih akun" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.map((acc) => (
-                    <SelectItem key={acc._id} value={acc.akun}>
-                      {acc.akun}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Label>Bulan Fiskal</Label>
-              <Select
-                value={editData.bulan}
-                onValueChange={value => setEditData({ ...editData, bulan: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih bulan" />
-                </SelectTrigger>
-                <SelectContent className="h-60 overflow-y-auto">
-                  {isMonthsLoading ? (
-                    editData?.bulan ? <SelectItem value={editData.bulan}>{editData.bulan}</SelectItem> : null
-                  ) : (
-                    fiscalMonthsData?.filter((bulan: string) => !!bulan && bulan.trim() !== "")
-                      .map((bulan: string) => (
-                        <SelectItem key={bulan} value={bulan}>{bulan}</SelectItem>
-                      ))
-                  )}
-                </SelectContent>
-              </Select>
-              <Label>Nilai</Label>
-              <Input
-                type="number"
-                value={editData.nilai}
-                onChange={e => setEditData({ ...editData, nilai: parseFloat(e.target.value) })}
-              />
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <Button variant="outline" onClick={() => { setEditModalOpen(false); setEditData(null); }}>Batal</Button>
-              <Button onClick={handleEditSave}>Simpan</Button>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 relative overflow-hidden">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] -z-10" />
+      <div className="absolute top-0 right-0 -z-10">
+        <div className="w-72 h-72 bg-gradient-to-bl from-blue-400/20 to-indigo-600/20 rounded-full blur-3xl" />
+      </div>
+      <div className="absolute bottom-0 left-0 -z-10">
+        <div className="w-96 h-96 bg-gradient-to-tr from-indigo-400/20 to-purple-600/20 rounded-full blur-3xl" />
+      </div>
+
+      <div className="container mx-auto px-6 py-8 space-y-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+              Transaksi
+            </h1>
+            <p className="text-gray-600 mt-2">Kelola transaksi dengan mudah dan efisien</p>
           </div>
         </div>
-      )}
-      <h1 className="text-3xl font-bold text-foreground">Transaksi</h1>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Input Transaksi</CardTitle>
-          <CardDescription>Tambah transaksi baru</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="kategori">Kategori</Label>
+        {/* Form Input Transaksi */}
+        <div className="bg-white/50 rounded-lg overflow-hidden border-2 border-dashed border-blue-200 p-6">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-2">
+              Input Transaksi
+            </h2>
+            <p className="text-gray-600">Tambah transaksi baru</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid gap-2">
+                <Label htmlFor="kategori" className="text-sm font-semibold text-gray-700">Kategori</Label>
                 <Select
                   value={formData.kategori_id}
                   onValueChange={(value) => {
@@ -406,7 +392,7 @@ export default function Transaksi() {
                     });
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-2 border-gray-200 transition-all duration-200">
                     <SelectValue placeholder="Pilih kategori" />
                   </SelectTrigger>
                   <SelectContent>
@@ -419,8 +405,8 @@ export default function Transaksi() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="subkategori">Sub Kategori</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="subkategori" className="text-sm font-semibold text-gray-700">Sub Kategori</Label>
                 <Select
                   value={formData.subkategori_id}
                   onValueChange={(value) => {
@@ -428,7 +414,7 @@ export default function Transaksi() {
                   }}
                   disabled={!formData.kategori_id}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-2 border-gray-200 transition-all duration-200">
                     <SelectValue placeholder="Pilih sub kategori" />
                   </SelectTrigger>
                   <SelectContent>
@@ -441,8 +427,8 @@ export default function Transaksi() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="akun">Akun</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="akun" className="text-sm font-semibold text-gray-700">Akun</Label>
                 <Select
                   value={formData.akun_id}
                   onValueChange={(value) =>
@@ -450,7 +436,7 @@ export default function Transaksi() {
                   }
                   disabled={!formData.subkategori_id}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-2 border-gray-200 transition-all duration-200">
                     <SelectValue placeholder="Pilih akun" />
                   </SelectTrigger>
                   <SelectContent>
@@ -463,112 +449,140 @@ export default function Transaksi() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="bulan">Bulan Fiskal</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="bulan" className="text-sm font-semibold text-gray-700">Bulan Fiskal</Label>
                 <Select
                   value={formData.bulan_fiskal}
                   onValueChange={(value) =>
                     setFormData({ ...formData, bulan_fiskal: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-2 border-gray-200 transition-all duration-200">
                     <SelectValue placeholder="Pilih bulan" />
                   </SelectTrigger>
                   <SelectContent className="h-60 overflow-y-auto">
-                    {isMonthsLoading ? (
-                      <SelectItem value={formData.bulan_fiskal || 'loading'}>{formData.bulan_fiskal || 'Memuat bulan...'}</SelectItem>
-                    ) : (
-                      fiscalMonthsData?.filter((bulan: string) => !!bulan && bulan.trim() !== "")
-                        .map((bulan: string) => (
+                    {fiscalMonthsData?.filter((bulan: string) => !!bulan && bulan.trim() !== "")
+                        .map((bulan: string) => {
+                          console.log(bulan);
+                          
+                          return (
                           <SelectItem key={bulan} value={bulan}>{bulan}</SelectItem>
-                        ))
-                    )}
+                        )
+                        })}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="nilai">Nilai Transaksi (Rp)</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="nilai" className="text-sm font-semibold text-gray-700">Nilai Transaksi (Rp)</Label>
                 <Input
                   id="nilai"
-                  type="number"
-                  value={formData.nilai || ''}
-                  onChange={(e) =>
-                    setFormData({ ...formData, nilai: parseFloat(e.target.value) })
-                  }
+                  type="text"
+                  value={formattedNilai}
+                  onChange={(e) => {
+                    const formatted = formatNumberInput(e.target.value);
+                    const numericValue = parseFormattedInput(formatted);
+                    setFormattedNilai(formatted);
+                    setFormData({ ...formData, nilai: numericValue });
+                  }}
+                  placeholder="0"
+                  className="border-2 border-gray-200 transition-all duration-200"
                   required
                 />
               </div>
             </div>
 
-            <Button type="submit" className="w-full md:w-auto">
-              <Plus className="w-4 h-4 mr-2" />
-              Simpan Transaksi
-            </Button>
+            <div className="flex justify-end pt-4">
+              <Button
+                type="submit"
+                className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Simpan Transaksi
+              </Button>
+            </div>
           </form>
-        </CardContent>
-      </Card>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Daftar Transaksi</CardTitle>
-          <CardDescription>History transaksi yang telah diinput</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
+        {/* Daftar Transaksi */}
+        <div className="bg-white/50 rounded-lg overflow-hidden border-2 border-dashed border-blue-200">
+          <Table className="table-fixed w-full">
             <TableHeader>
-              <TableRow>
-                <TableHead>Bulan Fiskal</TableHead>
-                <TableHead>Kategori</TableHead>
-                <TableHead>Sub Kategori</TableHead>
-                <TableHead>Akun</TableHead>
-                <TableHead className="text-right">Nilai</TableHead>
-                <TableHead>Input By</TableHead>
-                <TableHead>Aksi</TableHead>
+              <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-50 hover:to-indigo-50 border-b border-blue-200/50">
+                <TableHead className="w-24 px-6 py-4 font-semibold text-gray-900">Bulan Fiskal</TableHead>
+                <TableHead className="w-32 px-6 py-4 font-semibold text-gray-900">Kategori</TableHead>
+                <TableHead className="w-40 px-6 py-4 font-semibold text-gray-900">Sub Kategori</TableHead>
+                <TableHead className="w-40 px-6 py-4 font-semibold text-gray-900">Akun</TableHead>
+                <TableHead className="w-32 px-6 py-4 font-semibold text-gray-900 text-right">Nilai</TableHead>
+                <TableHead className="w-24 px-6 py-4 font-semibold text-gray-900">Input By</TableHead>
+                <TableHead className="w-32 px-6 py-4 text-right font-semibold text-gray-900">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
-                    Memuat data transaksi...
+                  <TableCell colSpan={7} className="text-center py-12">
+                    <div className="flex flex-col items-center space-y-3">
+                      <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-gray-600 font-medium">Memuat data transaksi...</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : transaksiList.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
-                    Belum ada transaksi
+                  <TableCell colSpan={7} className="text-center py-12">
+                    <div className="flex flex-col items-center space-y-3">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                      </div>
+                      <p className="text-gray-600 font-medium">Belum ada data transaksi</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 transaksiList.map((row: any, idx: number) => (
-                  <TableRow key={(row.parentId || row._id) + '-' + idx}>
-                    <TableCell>{row.bulan}</TableCell>
-                    <TableCell>{row.kategori}</TableCell>
-                    <TableCell>{row.sub_kategori}</TableCell>
-                    <TableCell>{row.akun}</TableCell>
-                    <TableCell className="text-right font-medium">
+                  <TableRow key={(row.parentId || row._id) + '-' + idx} className="hover:bg-blue-50/50 transition-colors duration-200 border-b border-gray-100/50">
+                    <TableCell className="w-24 px-6 py-4 font-semibold text-gray-900">{row.bulan}</TableCell>
+                    <TableCell className="w-32 px-6 py-4 font-medium text-gray-900">{row.kategori}</TableCell>
+                    <TableCell className="w-40 px-6 py-4 text-gray-700">{row.sub_kategori}</TableCell>
+                    <TableCell className="w-40 px-6 py-4 text-gray-700">{row.akun}</TableCell>
+                    <TableCell className="w-32 px-6 py-4 text-gray-700 text-right font-medium">
                       {formatCurrency(row.nilai)}
                     </TableCell>
-                    <TableCell>{row.input_by}</TableCell>
-                    <TableCell>
-                      <Button size="sm" variant="outline" onClick={() => handleEdit(row)}>
-                        Edit
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={() => handleDelete(row)} className="ml-2">
-                        Hapus
-                      </Button>
+                    <TableCell className="w-24 px-6 py-4 text-gray-700">{row.input_by}</TableCell>
+                    <TableCell className="w-32 px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(row)}
+                          className="border-blue-300 hover:bg-blue-50 hover:border-blue-400 transition-all duration-200"
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(row)}
+                          className="border-red-300 hover:bg-red-50 hover:border-red-400 text-red-600 hover:text-red-700 transition-all duration-200"
+                        >
+                          Hapus
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
-          <div className="flex items-center justify-between mt-4">
+
+          <div className="flex items-center justify-between p-6 border-t border-gray-100/50">
             <div className="flex items-center gap-3">
-              <div className="text-sm text-muted-foreground">Per halaman</div>
+              <div className="text-sm text-gray-600 font-medium">Per halaman</div>
               <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
-                <SelectTrigger className="w-24">
+                <SelectTrigger className="w-24 border-2 border-gray-200 transition-all duration-200">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -579,7 +593,7 @@ export default function Transaksi() {
               </Select>
             </div>
 
-            <div className="text-sm text-muted-foreground">Halaman {page} dari {totalPages}</div>
+            <div className="text-sm text-gray-600 font-medium">Halaman {page} dari {totalPages}</div>
 
             <div>
               <Pagination>
@@ -596,8 +610,217 @@ export default function Transaksi() {
               </Pagination>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Edit Modal */}
+        {editModalOpen && editData && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-8">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h3 className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                      Edit Transaksi
+                    </h3>
+                    <p className="text-gray-600 mt-1">Ubah data transaksi</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditModalOpen(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                  >
+                    ✕
+                  </Button>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid gap-2">
+                      <Label htmlFor="edit-kategori" className="text-sm font-semibold text-gray-700">Kategori</Label>
+                      <Select
+                        value={editData.kategori}
+                        onValueChange={(value) => setEditData({ ...editData, kategori: value, sub_kategori: '', akun: '' })}
+                      >
+                        <SelectTrigger className="border-2 border-gray-200 transition-all duration-200">
+                          <SelectValue placeholder="Pilih kategori" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((cat) => (
+                            <SelectItem key={cat._id} value={cat.kategori}>
+                              {cat.kategori}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="edit-subkategori" className="text-sm font-semibold text-gray-700">Sub Kategori</Label>
+                      <Select
+                        value={editData.sub_kategori}
+                        onValueChange={(value) => setEditData({ ...editData, sub_kategori: value, akun: '' })}
+                        disabled={!editData.kategori}
+                      >
+                        <SelectTrigger className="border-2 border-gray-200 transition-all duration-200">
+                          <SelectValue placeholder="Pilih sub kategori" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {editFilteredSubCategories.map((sub) => (
+                            <SelectItem key={sub._id} value={sub.sub_kategori}>
+                              {sub.sub_kategori}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="edit-akun" className="text-sm font-semibold text-gray-700">Akun</Label>
+                      <Select
+                        value={editData.akun}
+                        onValueChange={(value) => setEditData({ ...editData, akun: value })}
+                        disabled={!editData.sub_kategori}
+                      >
+                        <SelectTrigger className="border-2 border-gray-200 transition-all duration-200">
+                          <SelectValue placeholder="Pilih akun" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {editFilteredAccounts.map((acc) => (
+                            <SelectItem key={acc._id} value={acc.akun}>
+                              {acc.akun}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="edit-bulan" className="text-sm font-semibold text-gray-700">Bulan Fiskal</Label>
+                      <Select
+                        value={editData.bulan}
+                        onValueChange={(value) => setEditData({ ...editData, bulan: value })}
+                      >
+                        <SelectTrigger className="border-2 border-gray-200 transition-all duration-200">
+                          <SelectValue placeholder="Pilih bulan" />
+                        </SelectTrigger>
+                        <SelectContent className="h-60 overflow-y-auto">
+                          {fiscalMonthsData?.filter((bulan: string) => !!bulan && bulan.trim() !== "")
+                              .map((bulan: string) => {
+                                return (
+                                <SelectItem key={bulan} value={bulan}>{bulan}</SelectItem>
+                              )
+                              })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid gap-2 md:col-span-2">
+                      <Label htmlFor="edit-nilai" className="text-sm font-semibold text-gray-700">Nilai Transaksi (Rp)</Label>
+                      <Input
+                        id="edit-nilai"
+                        type="text"
+                        value={editFormattedNilai}
+                        onChange={(e) => {
+                          const formatted = formatNumberInput(e.target.value);
+                          const numericValue = parseFormattedInput(formatted);
+                          setEditFormattedNilai(formatted);
+                          setEditData({ ...editData, nilai: numericValue });
+                        }}
+                        placeholder="0"
+                        className="border-2 border-gray-200 transition-all duration-200"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-6 border-t border-gray-100/50">
+                    <Button
+                      variant="outline"
+                      onClick={() => setEditModalOpen(false)}
+                      className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      onClick={handleEditSave}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+                    >
+                      Simpan Perubahan
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        {deleteDialogOpen && deleteData && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white/95 backdrop-blur-md rounded-xl shadow-2xl max-w-md w-full">
+              <div className="p-6">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 bg-gradient-to-br from-red-100 to-red-200 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold bg-gradient-to-r from-red-900 to-red-600 bg-clip-text text-transparent">
+                      Konfirmasi Hapus
+                    </h3>
+                    <p className="text-gray-600 mt-1">Apakah Anda yakin ingin menghapus transaksi ini?</p>
+                  </div>
+                </div>
+
+                <div className="bg-red-50/50 rounded-lg p-4 mb-6 border border-red-200/50">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-700">Bulan Fiskal:</span>
+                      <span className="text-gray-900">{deleteData.bulan}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-700">Kategori:</span>
+                      <span className="text-gray-900">{deleteData.kategori}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-700">Sub Kategori:</span>
+                      <span className="text-gray-900">{deleteData.sub_kategori}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-700">Akun:</span>
+                      <span className="text-gray-900">{deleteData.akun}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-gray-700">Nilai:</span>
+                      <span className="text-gray-900 font-semibold">{formatCurrency(deleteData.nilai)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setDeleteDialogOpen(false);
+                      setDeleteData(null);
+                    }}
+                    className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+                  >
+                    Batal
+                  </Button>
+                  <Button
+                    onClick={handleConfirmDelete}
+                    className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+                  >
+                    Hapus Transaksi
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -47,6 +47,8 @@ interface Akun {
   subkategori_id: string;
   subkategori_nama?: string;
   input_by: string;
+  akun?: string;
+  sub_kategori?: string;
 }
 
 interface SubKategori {
@@ -153,7 +155,6 @@ export default function Akun() {
       const payload = {
         sub_kategori: formData.subkategori_id,
         akun: formData.nama,
-        kode: formData.kode,
         input_by: user?.name || 'Unknown',
       };
       saveMutation.mutate(payload);
@@ -184,180 +185,234 @@ export default function Akun() {
       setFormData({ nama: '', kode: '', subkategori_id: '', input_by: '' });
     };
 
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-foreground">Master Akun</h1>
-          <Button onClick={() => setModalOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 relative overflow-hidden">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] -z-10" />
+      <div className="absolute top-0 right-0 -z-10">
+        <div className="w-72 h-72 bg-gradient-to-bl from-blue-400/20 to-indigo-600/20 rounded-full blur-3xl" />
+      </div>
+      <div className="absolute bottom-0 left-0 -z-10">
+        <div className="w-96 h-96 bg-gradient-to-tr from-indigo-400/20 to-purple-600/20 rounded-full blur-3xl" />
+      </div>
+
+      <div className="container mx-auto px-6 py-8 space-y-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+              Master Akun
+            </h1>
+            <p className="text-gray-600 mt-2">Kelola akun transaksi dengan mudah dan efisien</p>
+          </div>
+          <Button
+            onClick={() => setModalOpen(true)}
+            className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+          >
+            <Plus className="w-5 h-5 mr-2" />
             Tambah Akun
           </Button>
         </div>
-        <Card>
-          <CardHeader>
-            <CardTitle>Daftar Akun</CardTitle>
-            <CardDescription>Manajemen akun transaksi</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
+
+        <div className="bg-white/50 rounded-lg overflow-hidden border-2 border-dashed border-blue-200">
+          <Table className="table-fixed w-full">
+            <TableHeader>
+              <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-50 hover:to-indigo-50 border-b border-blue-200/50">
+                <TableHead className="w-20 px-6 py-4 font-semibold text-gray-900">Kode</TableHead>
+                <TableHead className="w-64 px-6 py-4 font-semibold text-gray-900">Nama Akun</TableHead>
+                <TableHead className="w-48 px-6 py-4 font-semibold text-gray-900">Sub Kategori</TableHead>
+                <TableHead className="w-32 px-6 py-4 font-semibold text-gray-900">Input By</TableHead>
+                <TableHead className="w-32 px-6 py-4 text-right font-semibold text-gray-900">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
                 <TableRow>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Nama</TableHead>
-                  <TableHead>Sub Kategori</TableHead>
-                  <TableHead>Input By</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
+                  <TableCell colSpan={5} className="text-center py-12">
+                    <div className="flex flex-col items-center space-y-3">
+                      <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-gray-600 font-medium">Memuat data akun...</p>
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      Loading...
+              ) : data.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-12">
+                    <div className="flex flex-col items-center space-y-3">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                      </div>
+                      <p className="text-gray-600 font-medium">Belum ada data akun</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                data.map((item) => (
+                  <TableRow key={item._id} className="hover:bg-blue-50/50 transition-colors duration-200 border-b border-gray-100/50">
+                    <TableCell className="w-20 px-6 py-4 font-semibold text-gray-900">{item.kode}</TableCell>
+                    <TableCell className="w-64 px-6 py-4 font-medium text-gray-900">{item.akun || item.nama}</TableCell>
+                    <TableCell className="w-48 px-6 py-4 text-gray-700">
+                      {subCategories.find((sub) => sub._id === item.sub_kategori)?.sub_kategori || item.sub_kategori}
+                    </TableCell>
+                    <TableCell className="w-32 px-6 py-4 text-gray-700">{item.input_by}</TableCell>
+                    <TableCell className="w-32 px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(item)}
+                          className="border-blue-300 hover:bg-blue-50 hover:border-blue-400 transition-all duration-200"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setDeleteId(item._id || null);
+                            setShowDeleteDialog(true);
+                          }}
+                          className="border-red-300 hover:bg-red-50 hover:border-red-400 text-red-600 hover:text-red-700 transition-all duration-200"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
-                ) : data.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      Belum ada data
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  data.map((item) => (
-                    <TableRow key={item._id}>
-                      <TableCell className="font-medium">{item.kode}</TableCell>
-                      <TableCell>{item.akun || item.nama}</TableCell>
-                      <TableCell>
-                        {subCategories.find((sub) => sub._id === item.sub_kategori)?.sub_kategori || item.sub_kategori}
-                      </TableCell>
-                      <TableCell>{item.input_by}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(item)}
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => {
-                              setDeleteId(item._id || null);
-                              setShowDeleteDialog(true);
-                            }}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
         <ModalForm
           open={modalOpen}
           onOpenChange={handleCloseModal}
           title={editId ? 'Edit Akun' : 'Tambah Akun'}
         >
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="subkategori">Sub Kategori</Label>
+          <form onSubmit={handleSubmit} className="space-y-6 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="subkategori" className="text-sm font-semibold text-gray-700">Sub Kategori</Label>
               <Select
                 value={formData.subkategori_id}
                 onValueChange={(value) =>
                   setFormData({ ...formData, subkategori_id: value })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="border-2 border-gray-200 transition-all duration-200">
                   <SelectValue placeholder="Pilih sub kategori" />
                 </SelectTrigger>
                 <SelectContent>
                   {subCategories
-                    .filter((sub_kategori) => sub_kategori.status_aktv !== false)
-                    .map((sub_kategori) => (
-                      <SelectItem key={sub_kategori._id} value={sub_kategori._id}>
-                        {sub_kategori.sub_kategori} ({sub_kategori.kode})
+                    .filter((data) => data.status_aktv !== false)
+                    .sort((a, b) => a.kategori.localeCompare(b.kategori))
+                    .map((data) => (
+                      <SelectItem key={data._id} value={data._id}>
+                        ({data.kategori}) {data.sub_kategori}
                       </SelectItem>
                     ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="kode">Kode</Label>
-              <Input
-                id="kode"
-                value={formData.kode}
-                onChange={(e) => setFormData({ ...formData, kode: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="nama">Nama Akun</Label>
+            <div className="grid gap-2">
+              <Label htmlFor="nama" className="text-sm font-semibold text-gray-700">Nama Akun</Label>
               <Input
                 id="nama"
                 value={formData.nama}
                 onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
+                placeholder="Masukkan nama akun"
+                className="border-2 border-gray-200 transition-all duration-200"
                 required
               />
             </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={handleCloseModal}>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseModal}
+                className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+              >
                 Batal
               </Button>
-              <Button type="submit">{editId ? 'Update' : 'Simpan'}</Button>
+              <Button
+                type="submit"
+                className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+              >
+                {editId ? 'Simpan Perubahan' : 'Tambah Akun'}
+              </Button>
             </div>
           </form>
         </ModalForm>
         {/* Custom Delete Dialog */}
         <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <DialogContent>
+          <DialogContent className="bg-white/95 backdrop-blur-sm shadow-2xl">
             <DialogHeader>
-              <DialogTitle>Konfirmasi Hapus</DialogTitle>
-              <DialogDescription>
-                Apakah Anda yakin ingin menghapus data akun ini?
+              <DialogTitle className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                Konfirmasi Hapus
+              </DialogTitle>
+              <DialogDescription className="text-gray-600 text-base">
+                Yakin ingin menghapus akun ini? Tindakan ini tidak dapat dibatalkan.
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline">Batal</Button>
-              </DialogClose>
-              <Button variant="destructive" onClick={handleDelete}>Hapus</Button>
+            <DialogFooter className="gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteDialog(false)}
+                className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+              >
+                Batal
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                className="bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+              >
+                Hapus Akun
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
         {/* Custom Reactivate Dialog */}
         <Dialog open={showReactivateDialog} onOpenChange={setShowReactivateDialog}>
-          <DialogContent>
+          <DialogContent className="bg-white/95 backdrop-blur-sm border-blue-300 shadow-2xl">
             <DialogHeader>
-              <DialogTitle>Data sudah ada</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                Data Sudah Ada
+              </DialogTitle>
+              <DialogDescription className="text-gray-600 text-base">
                 Data ini sudah ada, aktifkan kembali?
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline" onClick={() => setShowReactivateDialog(false)}>Batal</Button>
-              </DialogClose>
-              <Button variant="default" onClick={async () => {
-                if (reactivateId) {
-                  await axiosInstance.put(`/master/akun/${reactivateId}`, {
-                    status_aktv: true,
-                    update_by: user?.name || 'Unknown',
-                  });
-                  await queryClient.invalidateQueries({ queryKey: ['akun'] });
-                  setShowReactivateDialog(false);
-                  handleCloseModal();
-                  toast.success('Akun diaktifkan kembali!');
-                }
-              }}>OK</Button>
+            <DialogFooter className="gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowReactivateDialog(false)}
+                className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+              >
+                Batal
+              </Button>
+              <Button
+                variant="default"
+                onClick={async () => {
+                  if (reactivateId) {
+                    await axiosInstance.put(`/master/akun/${reactivateId}`, {
+                      status_aktv: true,
+                      update_by: user?.name || 'Unknown',
+                    });
+                    await queryClient.invalidateQueries({ queryKey: ['akun'] });
+                    setShowReactivateDialog(false);
+                    handleCloseModal();
+                    toast.success('Akun diaktifkan kembali!');
+                  }
+                }}
+                className="bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+              >
+                Aktifkan Kembali
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
-    );
-  }
+    </div>
+  );
+}

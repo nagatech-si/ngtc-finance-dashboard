@@ -50,57 +50,63 @@ export default function AppSidebar() {
     <SidebarProvider>
       <Sidebar
         className="
-          bg-emerald-500 
-          text-white 
-          rounded-tr-3xl rounded-br-3xl
-          shadow-2xl 
-          border-r border-emerald-600/40
+          bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900
+          text-white
+          border-r border-slate-700/50
+          shadow-2xl
           backdrop-blur-xl
         "
       >
-        <SidebarContent className="gap-4 pt-6">
+        {/* Subtle background pattern */}
+        <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:20px_20px]" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-500/10 to-transparent rounded-full blur-2xl" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-indigo-500/10 to-transparent rounded-full blur-2xl" />
+
+        <SidebarContent className="gap-0 pt-8 relative z-10">
 
           {/* HEADER */}
-          <SidebarHeader className="px-4">
-            <div className="flex items-center gap-3 mb-5">
+          <SidebarHeader className="px-6">
+            <div className="flex items-center gap-4">
               <div className="
-                w-12 h-12 rounded-2xl 
-                bg-white/20 
+                w-12 h-12 rounded-xl
+                bg-gradient-to-br from-blue-500 to-indigo-600
                 flex items-center justify-center
-                shadow-md backdrop-blur-sm
+                shadow-lg shadow-blue-500/25
+                ring-1 ring-white/10
               ">
                 <Wallet className="w-6 h-6 text-white" />
               </div>
 
               <div>
-                <h1 className="text-lg font-semibold drop-shadow-sm">Akunting</h1>
-                <p className="text-xs opacity-80">System</p>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
+                  FinancePro
+                </h1>
+                <p className="text-xs text-slate-400 font-medium tracking-wide">Accounting System</p>
               </div>
             </div>
 
             {user && (
               <div className="
-                px-4 py-3 mb-2 
-                rounded-xl 
-                bg-white/15 
-                shadow-inner backdrop-blur-md 
-                text-white
+                mt-2 px-4 py-3
+                rounded-xl
+                bg-gradient-to-r from-slate-800/80 to-slate-700/80
+                border border-slate-600/30
+                shadow-inner
+                backdrop-blur-sm
               ">
-                <p className="text-[11px] opacity-80 mb-0.5">Logged in as</p>
-                <p className="font-semibold tracking-wide">{user.name}</p>
+                <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Active User</p>
+                <p className="font-semibold text-white text-sm">{user.name}</p>
               </div>
             )}
           </SidebarHeader>
 
-          <SidebarSeparator className="opacity-20 mx-4" />
-
           {/* MENU GROUP */}
-          <SidebarGroup className="px-4">
-            <SidebarGroupLabel className="text-white/80 text-sm">
-              Menu
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-slate-400 text-xs uppercase tracking-wider font-semibold px-2 mb-4">
+              Navigation
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu className="space-y-1 mt-2">
+              <SidebarMenu className="space-y-4">
 
                 {/* DASHBOARD */}
                 <SidebarMenuItem>
@@ -108,13 +114,20 @@ export default function AppSidebar() {
                     <SidebarMenuButton
                       isActive={location.pathname === "/dashboard"}
                       className={cn(
-                        "rounded-xl px-3 py-2 text-white/90 hover:text-white",
-                        "hover:bg-white/10 transition-all duration-200",
-                        "data-[active=true]:bg-white/20 shadow-sm"
+                        "group relative rounded-xl px-4 py-4 text-slate-300 hover:text-white transition-all duration-300",
+                        "hover:bg-gradient-to-r hover:from-blue-600/20 hover:to-indigo-600/20",
+                        "hover:shadow-lg hover:shadow-blue-500/10",
+                        "data-[active=true]:bg-gradient-to-r data-[active=true]:from-blue-600/30 data-[active=true]:to-indigo-600/30",
+                        "data-[active=true]:text-white data-[active=true]:shadow-lg data-[active=true]:shadow-blue-500/20",
+                        "border border-transparent data-[active=true]:border-blue-500/30",
+                        "py-5"
                       )}
                     >
-                      <LayoutDashboard />
-                      <span>Dashboard</span>
+                      <LayoutDashboard className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
+                      <span className="font-medium">Dashboard</span>
+                      {location.pathname === "/dashboard" && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-r-full" />
+                      )}
                     </SidebarMenuButton>
                   </NavLink>
                 </SidebarMenuItem>
@@ -123,25 +136,31 @@ export default function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     onClick={() => setIsMasterOpen(!isMasterOpen)}
-                    className="rounded-xl px-3 py-2 hover:bg-white/10 text-white/90"
+                    className={cn(
+                      "group relative rounded-xl px-4 py-4 text-slate-300 hover:text-white transition-all duration-300",
+                      "hover:bg-gradient-to-r hover:from-slate-700/50 hover:to-slate-600/50",
+                      "hover:shadow-lg hover:shadow-slate-500/10",
+                       "py-5",
+                      isMasterOpen && "bg-gradient-to-r from-slate-700/60 to-slate-600/60 text-white shadow-lg shadow-slate-500/20"
+                    )}
                   >
-                    <Database />
-                    <span>Master Data</span>
+                    <Database className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
+                    <span className="font-medium">Master Data</span>
                     <ChevronDown
                       className={cn(
-                        "w-4 h-4 ml-auto transition-transform duration-300",
-                        isMasterOpen && "rotate-180"
+                        "w-4 h-4 ml-auto transition-all duration-300 group-hover:scale-110",
+                        isMasterOpen && "rotate-180 text-blue-400"
                       )}
                     />
                   </SidebarMenuButton>
 
                   {isMasterOpen && (
-                    <SidebarMenuSub className="ml-6 mt-1 space-y-1">
+                    <SidebarMenuSub className="ml-8 mt-3 space-y-2 animate-in slide-in-from-top-2 duration-300">
                       {[
                         { key: "kategori", label: "Kategori" },
                         { key: "subkategori", label: "Sub Kategori" },
                         { key: "akun", label: "Akun" },
-                      ].map((item) => (
+                      ].map((item, index) => (
                         <SidebarMenuSubItem key={item.key}>
                           <NavLink to={`/master/${item.key}`}>
                             <SidebarMenuSubButton
@@ -149,12 +168,20 @@ export default function AppSidebar() {
                                 location.pathname === `/master/${item.key}`
                               }
                               className={cn(
-                                "rounded-lg px-3 py-2",
-                                "text-white/80 hover:bg-white/10 hover:text-white",
-                                "data-[active=true]:bg-white/20"
+                                "group relative rounded-lg px-3 py-3 text-slate-400 hover:text-white transition-all duration-300",
+                                "hover:bg-gradient-to-r hover:from-slate-600/40 hover:to-slate-500/40",
+                                "hover:translate-x-1",
+                                "data-[active=true]:bg-gradient-to-r data-[active=true]:from-blue-600/30 data-[active=true]:to-indigo-600/30",
+                                "data-[active=true]:text-white data-[active=true]:shadow-md data-[active=true]:shadow-blue-500/20",
+                                 "py-5"
                               )}
+                              style={{ animationDelay: `${index * 100}ms` }}
                             >
-                              {item.label}
+                              <div className="w-2 h-2 rounded-full bg-current opacity-60 group-hover:opacity-100 transition-opacity" />
+                              <span className="font-medium text-sm">{item.label}</span>
+                              {location.pathname === `/master/${item.key}` && (
+                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-r-full" />
+                              )}
                             </SidebarMenuSubButton>
                           </NavLink>
                         </SidebarMenuSubItem>
@@ -168,10 +195,21 @@ export default function AppSidebar() {
                   <NavLink to="/transaksi">
                     <SidebarMenuButton
                       isActive={location.pathname === "/transaksi"}
-                      className="rounded-xl px-3 py-2 hover:bg-white/10 text-white/90 data-[active=true]:bg-white/20"
+                      className={cn(
+                        "group relative rounded-xl px-4 py-4 text-slate-300 hover:text-white transition-all duration-300",
+                        "hover:bg-gradient-to-r hover:from-blue-600/20 hover:to-indigo-600/20",
+                        "hover:shadow-lg hover:shadow-blue-500/10",
+                        "data-[active=true]:bg-gradient-to-r data-[active=true]:from-blue-600/30 data-[active=true]:to-indigo-600/30",
+                        "data-[active=true]:text-white data-[active=true]:shadow-lg data-[active=true]:shadow-blue-500/20",
+                        "border border-transparent data-[active=true]:border-blue-500/30",
+                         "py-5"
+                      )}
                     >
-                      <Receipt />
-                      <span>Transaksi</span>
+                      <Receipt className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
+                      <span className="font-medium">Transaksi</span>
+                      {location.pathname === "/transaksi" && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-r-full" />
+                      )}
                     </SidebarMenuButton>
                   </NavLink>
                 </SidebarMenuItem>
@@ -179,28 +217,38 @@ export default function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {/* FOOTER FIXED */}
-          <div className="absolute bottom-0 left-0 w-full px-4 pb-4">
-            <SidebarSeparator className="opacity-20 mx-4 mb-3" />
+          {/* FOOTER */}
+          <div className="absolute bottom-0 left-0 w-full px-4 pb-6">
+            <div className="h-px bg-gradient-to-r from-transparent via-slate-600/50 to-transparent mb-4" />
             <SidebarFooter>
-              <SidebarMenu className="space-y-1">
+              <SidebarMenu className="space-y-3">
                 <SidebarMenuItem>
                   <NavLink to="/tutupbuku">
                     <SidebarMenuButton
-                      className="rounded-xl px-3 py-2 hover:bg-white/10 text-white"
+                      className={cn(
+                        "group rounded-xl px-4 py-4 text-slate-300 hover:text-white transition-all duration-300",
+                        "hover:bg-gradient-to-r hover:from-slate-700/50 hover:to-slate-600/50",
+                        "hover:shadow-lg hover:shadow-slate-500/10",
+                        "py-5"
+                      )}
                     >
-                      <Database />
-                      <span>Tutup Buku</span>
+                      <Database className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
+                      <span className="font-medium">Tutup Buku</span>
                     </SidebarMenuButton>
                   </NavLink>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     onClick={handleLogout}
-                    className="rounded-xl px-3 py-2 hover:bg-red-500/20 hover:text-red-200 transition-all"
+                    className={cn(
+                      "group rounded-xl px-4 py-4 text-slate-300 hover:text-red-300 transition-all duration-300",
+                      "hover:bg-gradient-to-r hover:from-red-600/20 hover:to-red-700/20",
+                      "hover:shadow-lg hover:shadow-red-500/10",
+                      "py-5"
+                    )}
                   >
-                    <LogOut />
-                    <span>Logout</span>
+                    <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
+                    <span className="font-medium">Logout</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
