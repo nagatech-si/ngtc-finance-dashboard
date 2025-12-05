@@ -48,3 +48,4 @@ dump/*.sql
 dump/*.gz
 __pycache__/
 coverage/
+akunting-backend/.env
