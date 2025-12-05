@@ -42,15 +42,10 @@ export function ChartDonut({ data, totalKategori }: ChartDonutProps) {
   function CustomTooltip({ active, payload }: any) {
     if (active && payload && payload.length) {
       const sub = payload[0].payload;
-      let percent = '0.00';
-      if (typeof totalKategori === 'number' && totalKategori > 0 && typeof sub.value === 'number') {
-        percent = ((sub.value / totalKategori) * 100).toFixed(2);
-      }
       return (
-        <div style={{ background: 'white', border: '1px solid #eee', padding: 12, minWidth: 180 }}>
+        <div style={{ background: 'white', border: '1px solid #eee', padding: 12, minWidth: 180, fontSize: 13 }}>
           <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{sub.name}</div>
           <div>Nominal: {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(sub.value)}</div>
-          <div>Persentase: {percent}%</div>
         </div>
       );
     }
@@ -78,16 +73,20 @@ export function ChartDonut({ data, totalKategori }: ChartDonutProps) {
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
-          <Legend layout="horizontal"
-          verticalAlign="top"
-          align="left"
-          iconSize={12}
-          fontSize={10}
-          wrapperStyle={{fontSize: "12px"}}
+          <Legend 
+            layout="vertical"
+            verticalAlign="middle"
+            align="right"
+            iconSize={12}
+            fontSize={10}
+            wrapperStyle={{fontSize: "13px", paddingLeft: "20px"}}
+            formatter={(value, entry) => {
+              const data = entry.payload;
+              return <span>{value}: <strong style={{fontSize: 14}}>Rp {data.value.toLocaleString('id-ID')}</strong></span>;
+            }}
            />
           <Tooltip content={<CustomTooltip />} />
         </PieChart>
-        {/* Center label for total tahunan kategori dihilangkan */}
       </ResponsiveContainer>
     </div>
   );

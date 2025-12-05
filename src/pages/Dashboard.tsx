@@ -89,14 +89,11 @@ export default function Dashboard() {
   const implementasiMarketingLainnyaTahunanData = data?.implementasiMarketingLainnyaTahunan || [];
   const biayaBiayaTahunanData = data?.biayaBiayaTahunan || [];
   const grossMarginTahunanData = data?.grossMarginTahunan || [];
+  const subscriberData = data?.subscriber || [];
   
   // Data untuk line chart kategori PEMBELIAN
   const pembelianData = pertahunData.find((item: any) => item.kategori === 'PEMBELIAN');
   const pembelianLineData = pembelianData ? pembelianData.data_bulanan
-    .sort((a: any, b: any) => {
-      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-      return months.indexOf(a.bulan) - months.indexOf(b.bulan);
-    })
     .map((bulanData: any) => ({
       bulan: bulanData.bulan,
       nominal: bulanData.total
@@ -117,10 +114,7 @@ export default function Dashboard() {
         { name: "ASET", total: bulanMap[bulan].ASET },
         { name: "GAJI", total: bulanMap[bulan].GAJI }
       ]
-    })).sort((a, b) => {
-      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-      return months.indexOf(a.kategori) - months.indexOf(b.kategori);
-    });
+    }))
   })();
 
   // Data untuk stacked bar biaya lain tahunan
@@ -140,10 +134,7 @@ export default function Dashboard() {
         name: sub,
         total: bulanMap[bulan][sub] || 0
       }))
-    })).sort((a, b) => {
-      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-      return months.indexOf(a.kategori) - months.indexOf(b.kategori);
-    });
+    }))
   })();
 
   // Data untuk stacked bar biaya biaya tahunan
@@ -163,22 +154,23 @@ export default function Dashboard() {
         name: sub,
         total: bulanMap[bulan][sub] || 0
       }))
-    })).sort((a, b) => {
-      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-      return months.indexOf(a.kategori) - months.indexOf(b.kategori);
-    });
+    }))
   })();
 
   // Data untuk line chart gross margin tahunan
   const grossMarginTahunanLineData = grossMarginTahunanData
-    .sort((a: any, b: any) => {
-      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-      return months.indexOf(a.bulan) - months.indexOf(b.bulan);
-    })
     .map((bulanData: any) => ({
       bulan: bulanData.bulan,
       nominal: bulanData.gross_margin
     }));
+
+  // Data untuk subscriber per program chart
+  const subscriberChartData = subscriberData.map((programData: any) => ({
+    program: programData.program,
+    total_biaya_tahunan: programData.total_biaya_tahunan,
+    total_subscriber_tahunan: programData.total_subscriber_tahunan,
+    data_bulanan: programData.data_bulanan
+  }));
   // Data untuk stacked bar: kategori (x-axis) dengan sub kategori sebagai bar yang ditumpuk
   const stackedBarData = rekapData.map((item: any) => ({
     kategori: item.kategori,
@@ -229,7 +221,7 @@ export default function Dashboard() {
               <div className="flex flex-col items-end">
                 <label className="text-sm font-medium text-gray-700 mb-1">Bulan</label>
                 <Select value={month} onValueChange={handleMonthChange}>
-                  <SelectTrigger className="w-40 h-12 bg-white/80 backdrop-blur-sm border-gray-300 hover:border-blue-500 focus:border-blue-500 focus:ring-blue-500 transition-all duration-200 shadow-lg">
+                  <SelectTrigger className="w-40 h-12 bg-white backdrop-blur-sm border-gray-300 hover:border-blue-500 focus:border-blue-500 focus:ring-blue-500 transition-all duration-200 shadow-lg">
                     <SelectValue placeholder="Select Month" />
                   </SelectTrigger>
                   <SelectContent className="bg-white/95 backdrop-blur-sm border-gray-200 shadow-xl">
@@ -244,7 +236,7 @@ export default function Dashboard() {
               <div className="flex flex-col items-end">
                 <label className="text-sm font-medium text-gray-700 mb-1">Tahun</label>
                 <Select value={year} onValueChange={handleYearChange}>
-                  <SelectTrigger className="w-32 h-12 bg-white/80 backdrop-blur-sm border-gray-300 hover:border-blue-500 focus:border-blue-500 focus:ring-blue-500 transition-all duration-200 shadow-lg">
+                  <SelectTrigger className="w-32 h-12 bg-white backdrop-blur-sm border-gray-300 hover:border-blue-500 focus:border-blue-500 focus:ring-blue-500 transition-all duration-200 shadow-lg">
                     <SelectValue placeholder="Select Year" />
                   </SelectTrigger>
                   <SelectContent className="max-h-56 overflow-y-auto bg-white/95 backdrop-blur-sm border-gray-200 shadow-xl">
@@ -264,15 +256,15 @@ export default function Dashboard() {
 
         {isLoading ? (
           <div className="h-[400px] flex items-center justify-center">
-            <Card className="w-full max-w-md border-2 border-dashed border-blue-200 bg-white/80 backdrop-blur-sm">
+            <Card className="w-full max-w-md border-2 border-dashed border-blue-200 bg-white backdrop-blur-sm">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
                 <p className="text-gray-600 font-medium">Loading dashboard data...</p>
               </CardContent>
             </Card>
           </div>
-        ) : rekapData.length === 0 && asetDanGajiData.length === 0 && biayaBiayaData.length === 0 && pertahunData.length === 0 && pembelianLineData.length === 0 && asetDanGajiTahunanChartData.length === 0 && implementasiMarketingLainnyaTahunanChartData.length === 0 && biayaBiayaTahunanChartData.length === 0 && grossMarginTahunanLineData.length === 0 ? (
-          <Card className="border-2 border-dashed border-blue-200 bg-white/80 backdrop-blur-sm">
+        ) : rekapData.length === 0 && asetDanGajiData.length === 0 && biayaBiayaData.length === 0 && pertahunData.length === 0 && pembelianLineData.length === 0 && asetDanGajiTahunanChartData.length === 0 && implementasiMarketingLainnyaTahunanChartData.length === 0 && biayaBiayaTahunanChartData.length === 0 && grossMarginTahunanLineData.length === 0 && subscriberChartData.length === 0 ? (
+          <Card className="border-2 border-dashed border-blue-200 bg-white backdrop-blur-sm">
             <CardContent className="flex flex-col items-center justify-center py-16">
               <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center mb-4">
                 <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -289,48 +281,51 @@ export default function Dashboard() {
             {/* Monthly trend chart per kategori */}
             {pertahunData.length > 0 && (
               <div className="mb-6">
-                <Card className="border-2 border-dashed border-purple-200 bg-white/80 backdrop-blur-sm hover:border-purple-400 transition-all duration-300">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-xl font-bold text-gray-900">Monthly Trends by Category</CardTitle>
-                    <CardDescription className="text-gray-600 text-sm">
-                      Monthly breakdown for each category in {year}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="space-y-4">
-                      {pertahunData.map((kategoriData: any, idx: number) => (
-                        <div key={idx} className="border-b border-gray-200 pb-4 last:border-b-0">
-                          <div className="flex justify-between items-center mb-3">
-                            <h3 className="text-base font-semibold text-gray-900">{kategoriData.kategori}</h3>
-                            <span className="text-xs font-medium text-purple-600">
-                              Total: {formatCurrency(kategoriData.total_tahunan)}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
-                            {kategoriData.data_bulanan
-                              .sort((a: any, b: any) => {
-                                const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-                                return months.indexOf(a.bulan) - months.indexOf(b.bulan);
-                              })
-                              .map((bulanData: any, bulanIdx: number) => (
-                                <div key={bulanIdx} className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-md p-2 text-center">
-                                  <div className="text-xs font-medium text-purple-700 mb-1">{bulanData.bulan}</div>
-                                  <div className="text-xs font-bold text-purple-900">{formatCurrency(bulanData.total)}</div>
-                                </div>
-                              ))}
-                          </div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {pertahunData
+                    .sort((a, b) => {
+                      const order = ['PENDAPATAN', 'PEMBELIAN', 'BIAYA'];
+                      const aIndex = order.indexOf(a.kategori);
+                      const bIndex = order.indexOf(b.kategori);
+                      // Jika kategori tidak ada di order array, letakkan di akhir
+                      const aOrder = aIndex === -1 ? order.length : aIndex;
+                      const bOrder = bIndex === -1 ? order.length : bIndex;
+                      return aOrder - bOrder;
+                    })
+                    .map((kategoriData: any, idx: number) => (
+                    <Card key={idx} className="border-2 border-dashed border-purple-200 bg-white backdrop-blur-sm hover:border-purple-400 transition-all duration-300">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-lg font-bold text-gray-900">{kategoriData.kategori}</CardTitle>
+                        <CardDescription className="text-gray-600 text-sm">
+                          Monthly breakdown in {year}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="mb-3">
+                          <span className="text-sm font-medium text-purple-600">
+                            Total: {formatCurrency(kategoriData.total_tahunan)}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-2">
+                          {kategoriData.data_bulanan
+                            .map((bulanData: any, bulanIdx: number) => (
+                              <div key={bulanIdx} className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-md p-2 text-center">
+                                <div className="text-xs font-medium text-purple-700 mb-1">{bulanData.bulan}</div>
+                                <div className="text-xs font-bold text-purple-900">Rp {bulanData.total.toLocaleString('id-ID')}</div>
+                              </div>
+                            ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               </div>
             )}
 
             {/* Line chart untuk kategori PEMBELIAN */}
             {pembelianLineData.length > 0 && (
               <div className="mb-8">
-                <Card className="border-2 border-dashed border-green-200 bg-white/80 backdrop-blur-sm hover:border-green-400 transition-all duration-300">
+                <Card className="border-2 border-dashed border-green-200 bg-white backdrop-blur-sm hover:border-green-400 transition-all duration-300">
                   <CardContent className='pt-6'>
                     <LineChartKategori 
                       data={pembelianLineData} 
@@ -345,7 +340,7 @@ export default function Dashboard() {
             {/* Stacked bar chart untuk Aset dan Gaji per bulan */}
             {asetDanGajiTahunanChartData.length > 0 && (
               <div className="mb-8">
-                <Card className="border-2 border-dashed border-orange-200 bg-white/80 backdrop-blur-sm hover:border-orange-400 transition-all duration-300">
+                <Card className="border-2 border-dashed border-orange-200 bg-white backdrop-blur-sm hover:border-orange-400 transition-all duration-300">
                   <CardContent className='pt-6'>
                     <StackedBarKategori
                       data={asetDanGajiTahunanChartData}
@@ -360,7 +355,7 @@ export default function Dashboard() {
             {/* Stacked bar chart untuk Biaya Lain per bulan */}
             {implementasiMarketingLainnyaTahunanChartData.length > 0 && (
               <div className="mb-8">
-                <Card className="border-2 border-dashed border-purple-200 bg-white/80 backdrop-blur-sm hover:border-purple-400 transition-all duration-300">
+                <Card className="border-2 border-dashed border-purple-200 bg-white backdrop-blur-sm hover:border-purple-400 transition-all duration-300">
                   <CardContent className='pt-6'>
                     <StackedBarKategori
                       data={implementasiMarketingLainnyaTahunanChartData}
@@ -375,7 +370,7 @@ export default function Dashboard() {
             {/* Stacked bar chart untuk Biaya Biaya per bulan */}
             {biayaBiayaTahunanChartData.length > 0 && (
               <div className="mb-8">
-                <Card className="border-2 border-dashed border-red-200 bg-white/80 backdrop-blur-sm hover:border-red-400 transition-all duration-300">
+                <Card className="border-2 border-dashed border-red-200 bg-white backdrop-blur-sm hover:border-red-400 transition-all duration-300">
                   <CardContent className='pt-6'>
                     <StackedBarKategori
                       data={biayaBiayaTahunanChartData}
@@ -390,13 +385,64 @@ export default function Dashboard() {
             {/* Line chart untuk Gross Margin per bulan */}
             {grossMarginTahunanLineData.length > 0 && (
               <div className="mb-8">
-                <Card className="border-2 border-dashed border-teal-200 bg-white/80 backdrop-blur-sm hover:border-teal-400 transition-all duration-300">
+                <Card className="border-2 border-dashed border-teal-200 bg-white backdrop-blur-sm hover:border-teal-400 transition-all duration-300">
                   <CardContent className='pt-6'>
                     <LineChartKategori 
                       data={grossMarginTahunanLineData} 
-                      title={`Gross Margin Monthly Trend - ${year}`}
+                      title={`Gross Margin - ${year}`}
                       description="Monthly gross margin trend (Omzet - Biaya - Pembelian)"
                     />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Subscriber per Program Chart */}
+            {subscriberChartData.length > 0 && (
+              <div className="mb-8">
+                <Card className="border-2 border-dashed border-cyan-200 bg-white backdrop-blur-sm hover:border-cyan-400 transition-all duration-300">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-2xl font-bold text-gray-900">Subscriber Program Overview</CardTitle>
+                    <CardDescription className="text-gray-600 text-sm">
+                      Cumulative subscribers and costs per program in {year} (accumulated from start of year)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {subscriberChartData.map((program: any, idx: number) => (
+                        <div key={idx} className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-lg p-4 border border-cyan-200">
+                          <h4 className="font-semibold text-cyan-900 mb-2">{program.program}</h4>
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-cyan-700">Total Subscribers (Cumulative):</span>
+                              <span className="font-bold text-cyan-900">{program.total_subscriber_tahunan}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-cyan-700">Total Cost (Cumulative):</span>
+                              <span className="font-bold text-cyan-900">Rp {program.total_biaya_tahunan.toLocaleString('id-ID')}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-cyan-700">Avg Cost/Subscriber:</span>
+                              <span className="font-bold text-cyan-900">
+                                Rp {(program.total_biaya_tahunan / program.total_subscriber_tahunan).toLocaleString('id-ID')}
+                              </span>
+                            </div>
+                          </div>
+                          {/* Monthly cumulative breakdown */}
+                          <div className="mt-3 pt-3 border-t border-cyan-200">
+                            <div className="text-xs text-cyan-700 mb-2">Cumulative by Month:</div>
+                            <div className="grid grid-cols-3 gap-1">
+                              {program.data_bulanan.map((bulanData: any, bulanIdx: number) => (
+                                <div key={bulanIdx} className="text-center">
+                                  <div className="text-xs font-medium text-cyan-800">{bulanData.bulan}</div>
+                                  <div className="text-xs text-cyan-600">{bulanData.jumlah_subscriber}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -429,7 +475,7 @@ export default function Dashboard() {
             {[...rekapData, ...asetDanGajiData, ...biayaBiayaData].filter((a) => a.kategori != "BIAYA").map((item: any, idx: number) => {
               const isBiaya = item.kategori === 'BIAYA';
               return (
-                  <Card key={idx} className={`border-2 border-dashed border-blue-200 bg-white/80 backdrop-blur-sm hover:border-blue-400 transition-all duration-300 ${isBiaya ? 'lg:col-span-2' : ''}`}>
+                  <Card key={idx} className={`border-2 border-dashed border-blue-200 bg-white backdrop-blur-sm hover:border-blue-400 transition-all duration-300 ${isBiaya ? 'lg:col-span-2' : ''}`}>
                     <CardHeader className="pb-4">
                       <CardTitle className="text-2xl font-bold text-gray-900">{item.kategori}</CardTitle>
                       <CardDescription className="text-gray-600 text-sm">

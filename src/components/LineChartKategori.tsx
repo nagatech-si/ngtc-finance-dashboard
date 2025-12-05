@@ -7,36 +7,93 @@ interface LineChartKategoriProps {
 }
 
 const CustomLabel = (props: any) => {
-  const { x, y, value } = props;
+  const { x, y, value, index, dataLength } = props;
+
+  // Jika ini titik pertama (index 0), geser ke kanan untuk menghindari bentrok dengan YAxis
+  const adjustedX = index === 0 ? x + 45 : x + 20;
+  // jika ini titik pertama (index 0), geser ke bawah untuk menghindari bentrok dengan YAxis
+  const adjustedY = index === 0 ? y + 15 : y - 10;
+
   return (
-    <text x={x} y={y - 10} textAnchor="middle" fontSize={12} fill="#000">
+    <text x={adjustedX} y={adjustedY} textAnchor="middle" fontSize={12} fill={value < 0 ? '#ef4444' : '#000'} fontWeight={900}>
       {`Rp${value.toLocaleString('id-ID')}`}
     </text>
   );
 };
 
 export default function LineChartKategori({ data, title, description }: LineChartKategoriProps) {
+  const totalValue = data.reduce((sum, item) => {
+    return sum + item.nominal
+  }, 0);
+
   return (
     <div className="bg-white">
-      {title && <h2 className="text-lg font-bold mb-2">{title}</h2>}
+      {title && (
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-bold">{title}</h2>
+          <div className="text-lg font-bold text-blue-600">
+            Total: Rp {totalValue.toLocaleString('id-ID')}
+          </div>
+        </div>
+      )}
       {description && <p className="text-sm text-muted-foreground mb-4">{description}</p>}
       <ResponsiveContainer width="100%" height={340}>
-        <LineChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+        <LineChart data={data} margin={{ top: 10, right: 70, left: 10, bottom: 10 }}>
           <XAxis
             dataKey="bulan"
             interval={0}
             dy={10}
-            tick={{ fontSize: 10 }}
+            tick={{ fontSize: 11 }}
           />
           <YAxis
             width={100}
-            tick={{ fontSize: 10 }}
+            tick={{ fontSize: 11 }}
             tickFormatter={(value) => value.toLocaleString('id-ID')}
             tickCount={6}
           />
-          <Tooltip formatter={(value: number, name, props) => [`Rp${value.toLocaleString('id-ID')}`, props.payload.bulan]} />
+          <Tooltip
+            content={({ active, payload, label }) => {
+              if (active && payload && payload.length > 0) {
+                const data = payload[0];
+                return (
+                  <div style={{
+                    background: '#fff',
+                    border: '1px solid #ececec',
+                    borderRadius: 10,
+                    padding: 12,
+                    fontSize: 12,
+                    minWidth: 150,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+                  }}>
+                    <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 13 }}>
+                      {label}
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
+                      <div style={{
+                        width: 12,
+                        height: 12,
+                        backgroundColor: '#0088FE',
+                        marginRight: 8,
+                        borderRadius: 2
+                      }}></div>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontWeight: 500 }}>Nominal:</span>
+                      </div>
+                      <div style={{ fontWeight: 600, color: (data.value as number) < 0 ? '#ef4444' : '#000000' }}>
+                        Rp {(data.value as number).toLocaleString('id-ID')}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            }}
+          />
           {/* <Legend verticalAlign="top" align="right" height={24} iconType="circle" /> */}
-          <Line type="monotone" dataKey="nominal" stroke="#0088FE" dot label={<CustomLabel />} />
+          <Line type="monotone" dataKey="nominal" stroke="#0088FE" dot label={<CustomLabel dataLength={data.length} />} />
         </LineChart>
       </ResponsiveContainer>
     </div>

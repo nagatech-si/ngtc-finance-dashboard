@@ -84,8 +84,9 @@ import mongoose from 'mongoose';
 import Kategori, { IKategori } from '../models/Kategori';
 import SubKategori, { ISubKategori } from '../models/SubKategori';
 import Akun, { IAkun } from '../models/Akun';
+import Program, { IProgram } from '../models/Program';
+import Subscriber, { ISubscriber } from '../models/Subscriber';
 import CustomDashboard, { ICustomDashboard } from '../models/CustomDashboard';
-import canSoftDeleteMaster from '../utils/masterDeleteHelper';
 import Transaksi from '../models/Transaksi';
 
 
@@ -508,6 +509,277 @@ export const deleteCustomDashboard = async (req: Request, res: Response) => {
     res.status(200).json({ success: true, message: 'Custom Dashboard berhasil dihapus.', data: cd });
   } catch (error) {
     console.error('❌ Error in deleteCustomDashboard:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// ==================== PROGRAM ====================
+
+export const listProgram = async (req: Request, res: Response) => {
+  try {
+    let filter = {};
+    if (!req.query.all) {
+      filter = { status_aktv: true };
+    };
+    const list = await Program.find(filter).sort({ nama: 1 });
+    res.json(list);
+  } catch (error) {
+    console.error('❌ Error in listProgram:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const createProgram = async (req: Request, res: Response) => {
+  try {
+    const { nama, biaya } = req.body;
+    if (!nama || biaya === undefined || biaya === null) {
+      return res.status(400).json({ message: 'nama dan biaya required' });
+    }
+
+    if (biaya < 0) {
+      return res.status(400).json({ message: 'biaya tidak boleh negatif' });
+    }
+
+    const userId = resolveUserId(req);
+    const finalKode = await generateNextKode(Program);
+
+    const p = new Program({
+      nama,
+      kode: finalKode,
+      biaya,
+      input_date: new Date(),
+      update_date: new Date(),
+      delete_date: null,
+      input_by: userId,
+      update_by: null,
+      delete_by: null,
+    });
+
+    await p.save();
+    res.status(200).json({ success: true, message: 'Data berhasil disimpan.', data: p });
+  } catch (error) {
+    console.error('❌ Error in createProgram:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const updateProgram = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { nama, biaya } = req.body;
+    const userId = resolveUserId(req);
+
+    const old = await Program.findById(id);
+    if (!old) return res.status(404).json({ message: 'Program not found' });
+
+    // nama uniqueness check (exclude current)
+    if (nama) {
+      const existsNama = await Program.findOne({ _id: { $ne: id }, nama, $or: [{ status_aktv: true }, { active: true }] });
+      if (existsNama) {
+        return res.status(400).json({ message: 'Nama program tersebut sudah digunakan. Silakan gunakan nama lain.' });
+      }
+    }
+
+    old.nama = nama ?? old.nama;
+    old.biaya = biaya ?? old.biaya;
+    old.update_date = new Date();
+    old.update_by = userId;
+    old.status_aktv = req.body.status_aktv ?? old.status_aktv;
+    await old.save();
+    res.status(200).json({ success: true, message: 'Data berhasil disimpan.', data: old });
+  } catch (error) {
+    console.error('❌ Error in updateProgram:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const deleteProgram = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = resolveUserId(req);
+
+    const program = await Program.findById(id);
+    if (!program) return res.status(404).json({ message: 'Program not found' });
+
+    // TODO: Add validation for related data (subscriptions, etc.) if needed
+
+    const auditUser = getAuditUserId(req);
+    program.status_aktv = false;
+    program.delete_date = new Date();
+    program.delete_by = auditUser;
+    await program.save();
+    res.status(200).json({ success: true, message: 'Program berhasil dihapus.', data: program });
+  } catch (error) {
+    console.error('❌ Error in deleteProgram:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// ==================== SUBSCRIBER ====================
+
+export const listSubscriber = async (req: Request, res: Response) => {
+  try {
+    let filter = {};
+    if (!req.query.all) {
+      filter = { status_aktv: true };
+    };
+    const list = await Subscriber.find(filter).sort({ tanggal: -1 });
+    res.json(list);
+  } catch (error) {
+    console.error('❌ Error in listSubscriber:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const createSubscriber = async (req: Request, res: Response) => {
+  try {
+    const {
+      no_ok,
+      sales,
+      toko,
+      alamat,
+      daerah,
+      kode_program,
+      vb_online,
+      tanggal,
+      implementator,
+      via
+    } = req.body;
+
+    // Validate required fields only
+    if (!toko || !daerah || !kode_program || !tanggal || !via) {
+      return res.status(400).json({ message: 'Toko, Daerah, Kode Program, Tanggal, dan Via wajib diisi' });
+    }
+
+    // Get program details
+    const program = await Program.findOne({ kode: kode_program, status_aktv: true });
+    if (!program) {
+      return res.status(400).json({ message: 'Program tidak ditemukan atau tidak aktif' });
+    }
+
+    const userId = resolveUserId(req);
+    const finalKode = await generateNextKode(Subscriber);
+
+    const subscriber = new Subscriber({
+      kode: finalKode,
+      no_ok,
+      sales,
+      toko,
+      alamat,
+      daerah,
+      kode_program,
+      program: program.nama,
+      vb_online,
+      biaya: program.biaya,
+      tanggal: new Date(tanggal),
+      implementator,
+      via,
+      input_date: new Date(),
+      update_date: new Date(),
+      delete_date: null,
+      input_by: userId,
+      update_by: null,
+      delete_by: null,
+    });
+
+    await subscriber.save();
+    res.status(200).json({ success: true, message: 'Data berhasil disimpan.', data: subscriber });
+  } catch (error) {
+    console.error('❌ Error in createSubscriber:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const updateSubscriber = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      no_ok,
+      sales,
+      toko,
+      alamat,
+      daerah,
+      kode_program,
+      vb_online,
+      tanggal,
+      implementator,
+      via
+    } = req.body;
+
+    const userId = resolveUserId(req);
+
+    const old = await Subscriber.findById(id);
+    if (!old) return res.status(404).json({ message: 'Subscriber not found' });
+
+    // Validate required fields only if they are being updated
+    if (toko !== undefined && !toko) {
+      return res.status(400).json({ message: 'Toko wajib diisi' });
+    }
+    if (daerah !== undefined && !daerah) {
+      return res.status(400).json({ message: 'Daerah wajib diisi' });
+    }
+    if (kode_program !== undefined && !kode_program) {
+      return res.status(400).json({ message: 'Kode Program wajib diisi' });
+    }
+    if (tanggal !== undefined && !tanggal) {
+      return res.status(400).json({ message: 'Tanggal wajib diisi' });
+    }
+    if (via !== undefined && !via) {
+      return res.status(400).json({ message: 'Via wajib diisi' });
+    }
+
+    // Get program details if kode_program changed
+    let programName = old.program;
+    let programBiaya = old.biaya;
+
+    if (kode_program && kode_program !== old.kode_program) {
+      const program = await Program.findOne({ kode: kode_program, status_aktv: true });
+      if (!program) {
+        return res.status(400).json({ message: 'Program tidak ditemukan atau tidak aktif' });
+      }
+      programName = program.nama;
+      programBiaya = program.biaya;
+    }
+
+    old.no_ok = no_ok ?? old.no_ok;
+    old.sales = sales ?? old.sales;
+    old.toko = toko ?? old.toko;
+    old.alamat = alamat ?? old.alamat;
+    old.daerah = daerah ?? old.daerah;
+    old.kode_program = kode_program ?? old.kode_program;
+    old.program = programName;
+    old.vb_online = vb_online ?? old.vb_online;
+    old.biaya = programBiaya;
+    old.tanggal = tanggal ? new Date(tanggal) : old.tanggal;
+    old.implementator = implementator ?? old.implementator;
+    old.via = via ?? old.via;
+    old.update_date = new Date();
+    old.update_by = userId;
+    old.status_aktv = req.body.status_aktv ?? old.status_aktv;
+    await old.save();
+    res.status(200).json({ success: true, message: 'Data berhasil disimpan.', data: old });
+  } catch (error) {
+    console.error('❌ Error in updateSubscriber:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const deleteSubscriber = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = resolveUserId(req);
+
+    const subscriber = await Subscriber.findById(id);
+    if (!subscriber) return res.status(404).json({ message: 'Subscriber not found' });
+
+    const auditUser = getAuditUserId(req);
+    subscriber.status_aktv = false;
+    subscriber.delete_date = new Date();
+    subscriber.delete_by = auditUser;
+    await subscriber.save();
+    res.status(200).json({ success: true, message: 'Subscriber berhasil dihapus.', data: subscriber });
+  } catch (error) {
+    console.error('❌ Error in deleteSubscriber:', error);
     res.status(500).json({ message: 'Server error', error });
   }
 };

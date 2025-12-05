@@ -241,7 +241,7 @@ export const seedKategoriDanSubKategori = async () => {
 
         const newAkun = new Akun({
           sub_kategori: akunDataItem.sub_kategori,
-          sub_kategori_id: subKategori._id,
+          sub_kategori_kode: subKategori.kode,
           kategori: akunDataItem.kategori,
           akun: akunDataItem.akun,
           kode: nextKode,

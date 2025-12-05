@@ -9,6 +9,7 @@ import transaksiRoutes from './routes/transaksiRoutes';
 import dashboardRoutes from './routes/dashboardRoutes';
 import masterRoutes from './routes/masterRoutes';
 import fiscalRoutes from './routes/fiscalRoutes';
+import subscriberRoutes from './routes/subscriberRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -42,6 +43,7 @@ app.use('/api/transaksi', transaksiRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/master', masterRoutes);
 app.use('/api/fiscal', fiscalRoutes);
+app.use('/api/subscriber', subscriberRoutes);
 
 // 404 handler
 app.use((req, res) => {

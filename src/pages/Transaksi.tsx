@@ -245,6 +245,9 @@ export default function Transaksi() {
     ? accounts.filter((acc) => {
         const selectedSubKategori = subCategories.find((sk) => sk._id === formData.subkategori_id);
         const selectedKategori = categories.find((cat) => cat._id === formData.kategori_id)?.kategori;
+        console.log(selectedKategori);
+        console.log(selectedSubKategori);
+        
         return (
           acc.sub_kategori === selectedSubKategori?.sub_kategori &&
           acc.kategori === selectedKategori &&

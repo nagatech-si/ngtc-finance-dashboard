@@ -7,13 +7,34 @@ export const rekapAggregate = async (req: Request, res: Response) => {
   // Model
   const ThFinance = require('../models/ThFinance').default;
   const Transaksi = require('../models/Transaksi').default;
+  const Subscriber = require('../models/Subscriber').default;
 
   // Cek apakah sudah tutup buku
   const thFinanceCount = await ThFinance.countDocuments({ tahun_fiskal: tahun });
 
   // Pilih collection
   const Collection = thFinanceCount > 0 ? ThFinance : Transaksi;
+  const order = ["DEC", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV"];
 
+function sortDataBulanan(arr: any) {
+  return arr.map((item : any) => {
+    item.data_bulanan = item.data_bulanan.sort((a : any, b: any) => {
+      const bulanA = a.bulan.substring(0, 3); // contoh: "DEC"
+      const bulanB = b.bulan.substring(0, 3);
+
+      return order.indexOf(bulanA) - order.indexOf(bulanB);
+    });
+    return item;
+  });
+}
+
+function sortDataGross(arr: any) {
+  return arr.sort((a: any, b: any) => {
+    const bulanA = a.bulan.substring(0, 3);
+    const bulanB = b.bulan.substring(0, 3);
+    return order.indexOf(bulanA) - order.indexOf(bulanB);
+  });
+}
   // ===========================
   // DYNAMIC PIPELINE
   // ===========================
@@ -451,7 +472,7 @@ export const rekapAggregate = async (req: Request, res: Response) => {
     { $match: { tahun_fiskal: tahun } },
     {
       $match: {
-        kategori: { $in: ["OMZET", "BIAYA", "PEMBELIAN"] }
+        kategori: { $in: ["PENDAPATAN", "BIAYA", "PEMBELIAN"] }
       }
     },
     { $unwind: '$data_bulanan' },
@@ -501,7 +522,7 @@ export const rekapAggregate = async (req: Request, res: Response) => {
                 {
                   $filter: {
                     input: '$totals',
-                    cond: { $eq: ['$$this.kategori', 'OMZET'] }
+                    cond: { $eq: ['$$this.kategori', 'PENDAPATAN'] }
                   }
                 },
                 0
@@ -569,12 +590,12 @@ export const rekapAggregate = async (req: Request, res: Response) => {
   const result = await Collection.aggregate(pipeline);
   const resultAsetDanGaji = await Collection.aggregate(pipelineAsetDanGaji);
   const resultBiayaBiaya = await Collection.aggregate(pipelineBiayaBiaya);
-  const resultPertahun = await Collection.aggregate(pipelinePertahun);
+  let resultPertahun = await Collection.aggregate(pipelinePertahun);
   const resultAsetDanGajiTahunan = await Collection.aggregate(pipelineAsetDanGajiTahunan);
   const resultImplementasiMarketingLainnyaTahunan = await Collection.aggregate(pipelineImplementasiMarketingLainnyaTahunan);
   const resultBiayaBiayaTahunan = await Collection.aggregate(pipelineBiayaBiayaTahunan);
   const resultGrossMarginTahunan = await Collection.aggregate(pipelineGrossMarginTahunan);
-
+  
   res.json({
     success: true,
     tahun,
@@ -582,10 +603,10 @@ export const rekapAggregate = async (req: Request, res: Response) => {
     data: result,
     asetDanGaji: resultAsetDanGaji,
     biayaBiaya: resultBiayaBiaya,
-    pertahun: resultPertahun,
-    asetDanGajiTahunan: resultAsetDanGajiTahunan,
-    implementasiMarketingLainnyaTahunan: resultImplementasiMarketingLainnyaTahunan,
-    biayaBiayaTahunan: resultBiayaBiayaTahunan,
-    grossMarginTahunan: resultGrossMarginTahunan
+    pertahun: sortDataBulanan(resultPertahun),
+    asetDanGajiTahunan: sortDataBulanan(resultAsetDanGajiTahunan),
+    implementasiMarketingLainnyaTahunan: sortDataBulanan(resultImplementasiMarketingLainnyaTahunan),
+    biayaBiayaTahunan: sortDataBulanan(resultBiayaBiayaTahunan),
+    grossMarginTahunan: sortDataGross(resultGrossMarginTahunan),
   });
 };

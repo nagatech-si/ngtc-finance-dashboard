@@ -37,15 +37,10 @@ export function ChartBar({ data, totalKategori }: ChartBarProps) {
   }) {
     if (active && payload && payload.length) {
       const sub = payload[0].payload;
-      let percent = '0.00';
-      if (typeof totalKategori === 'number' && totalKategori > 0 && typeof sub.value === 'number') {
-        percent = ((sub.value / totalKategori) * 100).toFixed(2);
-      }
       return (
-        <div style={{ background: 'white', border: '1px solid #eee', padding: 12, minWidth: 180 }}>
+        <div style={{ background: 'white', border: '1px solid #eee', padding: 12, minWidth: 180, fontSize: 13 }}>
           <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{sub.name}</div>
           <div>Nominal: {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(sub.value)}</div>
-          <div>Persentase: {percent}%</div>
         </div>
       );
     }
@@ -136,10 +131,8 @@ export function ChartBar({ data, totalKategori }: ChartBarProps) {
             <LabelList
               dataKey="value"
               position="top"
-              formatter={(value: number) => new Intl.NumberFormat('id-ID', {
-                notation: 'compact',
-                compactDisplay: 'short'
-              }).format(value)}
+              offset={15}
+              formatter={(value: number) => `Rp.${value.toLocaleString('id-ID')}`}
               style={{
                 fontSize: 12,
                 fill: '#374151',

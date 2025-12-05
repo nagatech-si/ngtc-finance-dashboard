@@ -1,0 +1,52 @@
+import mongoose, { Document, Schema } from 'mongoose';
+
+export interface ISubscriber extends Document {
+  kode: string;
+  no_ok: string | null;
+  sales: string | null;
+  toko: string;
+  alamat: string | null;
+  daerah: string;
+  kode_program: string;
+  program: string;
+  vb_online: string | null;
+  biaya: number;
+  tanggal: Date;
+  implementator: string | null;
+  via: 'VISIT' | 'ONLINE';
+  status_aktv: boolean;
+  input_date: Date;
+  update_date: Date;
+  delete_date: Date | null;
+  input_by: string;
+  update_by: string | null;
+  delete_by: string | null;
+}
+
+const SubscriberSchema: Schema = new Schema({
+  kode: { type: String, required: true, unique: true },
+  no_ok: { type: String, required: false, default: null },
+  sales: { type: String, required: false, default: null },
+  toko: { type: String, required: true },
+  alamat: { type: String, required: false, default: null },
+  daerah: { type: String, required: true },
+  kode_program: { type: String, required: true },
+  program: { type: String, required: true },
+  vb_online: { type: String, required: false, default: null },
+  biaya: { type: Number, required: true, min: 0 },
+  tanggal: { type: Date, required: true },
+  implementator: { type: String, required: false, default: null },
+  via: { type: String, required: true, enum: ['VISIT', 'ONLINE'] },
+  status_aktv: { type: Boolean, default: true },
+  active: { type: Boolean, default: true },
+  input_date: { type: Date, default: Date.now },
+  update_date: { type: Date, default: Date.now },
+  delete_date: { type: Date, default: null },
+  deleted_at: { type: Date, default: null },
+  input_by: { type: String, required: true },
+  update_by: { type: String, default: null },
+  delete_by: { type: String, default: null },
+  deleted_by: { type: String, default: null },
+});
+
+export default mongoose.model<ISubscriber>('Subscriber', SubscriberSchema, 'tm_subscriber');

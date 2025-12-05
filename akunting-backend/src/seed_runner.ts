@@ -1,4 +1,5 @@
 import { connectDB } from './config/db';
+import { migrateSubscriberFromCSV } from './scripts/migrate_subscriber';
 import { seedKategoriDanSubKategori } from './seed_data';
 
 const runSeed = async () => {
@@ -8,7 +9,8 @@ const runSeed = async () => {
     console.log('✅ Database connected successfully');
 
     console.log('🌱 Starting seed data process...');
-    await seedKategoriDanSubKategori();
+    // await seedKategoriDanSubKategori();
+    await migrateSubscriberFromCSV("src/scripts/data_subscriber.csv");
     console.log('✅ Seed data completed successfully');
 
     process.exit(0);

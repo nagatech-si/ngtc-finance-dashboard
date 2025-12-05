@@ -219,3 +219,133 @@ export const deleteTransaksi = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Server error', error });
   }
 };
+
+// Batch insert transaksi - menerima array of transaksi objects
+export const batchCreateTransaksi = async (req: Request, res: Response) => {
+  try {
+    const transaksiArray = req.body;
+
+    // Validasi input harus berupa array
+    if (!Array.isArray(transaksiArray)) {
+      return res.status(400).json({ message: 'Input harus berupa array of transaksi objects' });
+    }
+
+    // Validasi array tidak kosong
+    if (transaksiArray.length === 0) {
+      return res.status(400).json({ message: 'Array transaksi tidak boleh kosong' });
+    }
+
+    const results = {
+      success: [] as any[],
+      errors: [] as any[],
+      total: transaksiArray.length,
+      successCount: 0,
+      errorCount: 0
+    };
+
+    // Process each transaksi item
+    for (let i = 0; i < transaksiArray.length; i++) {
+      const item = transaksiArray[i];
+      const itemIndex = i + 1;
+
+      try {
+        const { kategori, sub_kategori, akun, bulan, nilai, input_by, tahun_fiskal } = item;
+
+        // Validasi required fields
+        if (!kategori || !sub_kategori || !akun || !bulan || nilai === undefined) {
+          results.errors.push({
+            index: itemIndex,
+            data: item,
+            error: 'kategori, sub_kategori, akun, bulan, nilai required'
+          });
+          results.errorCount++;
+          continue;
+        }
+
+        // Otomatis ambil tahun fiskal dari bulan jika tidak dikirim
+        let tahunFiskal = tahun_fiskal;
+        if (!tahunFiskal && bulan) {
+          const match = bulan.match(/([A-Z]+)\s*-\s*(\d{2,4})$/i);
+          if (match) {
+            const bulanStr = match[1].toUpperCase();
+            let tahunNum = match[2].length === 2 ? 2000 + parseInt(match[2]) : parseInt(match[2]);
+            const bulanMap: Record<string, number> = {
+              JAN: 1, FEB: 2, MAR: 3, APR: 4, MAY: 5, JUN: 6,
+              JUL: 7, AUG: 8, SEP: 9, OCT: 10, NOV: 11, DEC: 12
+            };
+            const bulanAngka = bulanMap[bulanStr] || 1;
+            tahunFiskal = bulanAngka >= 12 ? (tahunNum + 1).toString() : tahunNum.toString();
+          }
+        }
+
+        if (!tahunFiskal) {
+          results.errors.push({
+            index: itemIndex,
+            data: item,
+            error: 'tahun_fiskal tidak ditemukan dari bulan'
+          });
+          results.errorCount++;
+          continue;
+        }
+
+        // Cari dokumen tt_finance berdasarkan kategori, sub_kategori, akun, tahun_fiskal
+        let doc = await Transaksi.findOne({ kategori, sub_kategori, akun, tahun_fiskal: tahunFiskal });
+
+        if (!doc) {
+          // Buat baru jika belum ada
+          doc = new Transaksi({
+            kategori,
+            sub_kategori,
+            akun,
+            data_bulanan: [{ bulan, nilai }],
+            total_tahunan: nilai,
+            input_by: input_by || 'system',
+            tahun_fiskal: tahunFiskal,
+            created_at: new Date(),
+            updated_at: new Date(),
+          });
+        } else {
+          // Update data_bulanan jika sudah ada
+          const idx = doc.data_bulanan.findIndex((d: any) => d.bulan === bulan);
+          if (idx >= 0) {
+            doc.data_bulanan[idx].nilai = nilai;
+          } else {
+            doc.data_bulanan.push({ bulan, nilai });
+          }
+          // Hitung total tahunan
+          doc.total_tahunan = doc.data_bulanan.reduce((sum: number, d: any) => sum + d.nilai, 0);
+          doc.updated_at = new Date();
+          doc.tahun_fiskal = tahunFiskal;
+        }
+
+        await doc.save();
+        results.success.push({
+          index: itemIndex,
+          data: item,
+          result: doc
+        });
+        results.successCount++;
+
+      } catch (itemError) {
+        results.errors.push({
+          index: itemIndex,
+          data: item,
+          error: itemError instanceof Error ? itemError.message : 'Unknown error'
+        });
+        results.errorCount++;
+      }
+    }
+
+    // Return summary
+    const statusCode = results.errorCount === 0 ? 200 : results.errorCount === results.total ? 400 : 207; // 207 = Multi-Status
+
+    res.status(statusCode).json({
+      message: `Batch insert completed. Success: ${results.successCount}, Errors: ${results.errorCount}`,
+      results
+    });
+
+  } catch (error) {
+    console.error('❌ Error in batchCreateTransaksi:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};

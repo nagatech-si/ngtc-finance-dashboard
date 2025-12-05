@@ -3,6 +3,7 @@ import {
   listKategori, createKategori, updateKategori, deleteKategori,
   listSubKategori, createSubKategori, updateSubKategori, deleteSubKategori,
   listAkun, createAkun, updateAkun, deleteAkun,
+  listProgram, createProgram, updateProgram, deleteProgram,
   listCustomDashboard, createCustomDashboard, updateCustomDashboard, deleteCustomDashboard
 } from '../controllers/masterController';
 import { authenticate } from '../middleware/authMiddleware';
@@ -33,5 +34,11 @@ router.get('/custom-dashboard', listCustomDashboard);
 router.post('/custom-dashboard', authenticate, createCustomDashboard);
 router.put('/custom-dashboard/:id', authenticate, updateCustomDashboard);
 router.delete('/custom-dashboard/:id', authenticate, deleteCustomDashboard);
+
+// Program routes
+router.get('/program', listProgram);
+router.post('/program', authenticate, createProgram);
+router.put('/program/:id', authenticate, updateProgram);
+router.delete('/program/:id', authenticate, deleteProgram);
 
 export default router;
