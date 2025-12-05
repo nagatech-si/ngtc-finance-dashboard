@@ -29,10 +29,22 @@ import {
   SidebarGroupContent,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function AppSidebar() {
   const location = useLocation();
   const [isMasterOpen, setIsMasterOpen] = useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const { user, logout } = useAppStore();
   const navigate = useNavigate();
 
@@ -45,6 +57,15 @@ export default function AppSidebar() {
   const handleLogout = () => {
     logout();
     navigate("/login");
+  };
+
+  const handleLogoutClick = () => {
+    setShowLogoutDialog(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutDialog(false);
+    handleLogout();
   };
 
   return (
@@ -264,18 +285,42 @@ export default function AppSidebar() {
                   </NavLink>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={handleLogout}
-                    className={cn(
-                      "group rounded-xl px-4 py-4 text-slate-300 hover:text-red-300 transition-all duration-300",
-                      "hover:bg-gradient-to-r hover:from-red-600/20 hover:to-red-700/20",
-                      "hover:shadow-lg hover:shadow-red-500/10",
-                      "py-5"
-                    )}
-                  >
-                    <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
-                    <span className="font-medium">Logout</span>
-                  </SidebarMenuButton>
+                  <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+                    <AlertDialogTrigger asChild>
+                      <SidebarMenuButton
+                        className={cn(
+                          "group rounded-xl px-4 py-4 text-slate-300 hover:text-red-300 transition-all duration-300",
+                          "hover:bg-gradient-to-r hover:from-red-600/20 hover:to-red-700/20",
+                          "hover:shadow-lg hover:shadow-red-500/10",
+                          "py-5"
+                        )}
+                      >
+                        <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
+                        <span className="font-medium">Logout</span>
+                      </SidebarMenuButton>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="bg-white/95 backdrop-blur-sm border-red-300 shadow-2xl">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="text-xl font-bold bg-gradient-to-r from-red-600 to-red-500 bg-clip-text text-transparent">
+                          Konfirmasi Logout
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-gray-600 text-base">
+                          Apakah Anda yakin ingin keluar dari aplikasi? Anda akan diarahkan ke halaman login.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter className="gap-3">
+                        <AlertDialogCancel className="border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                          Batal
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={confirmLogout}
+                          className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+                        >
+                          Ya, Logout
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarFooter>
