@@ -804,6 +804,7 @@ export const subscriberByProgram = async (req: Request, res: Response) => {
     }
 
     const Subscriber = require('../models/Subscriber').default;
+    const Program = require('../models/Program').default;
 
     // Tentukan tanggal akhir berdasarkan bulan dan tahun yang dipilih
     const bulanMap: { [key: string]: number } = {
@@ -825,20 +826,31 @@ export const subscriberByProgram = async (req: Request, res: Response) => {
         }
       },
       {
+        $lookup: {
+          from: 'tm_program',
+          localField: 'program',
+          foreignField: 'nama',
+          as: 'program_info'
+        }
+      },
+      {
+        $unwind: {
+          path: '$program_info',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
         $project: {
           program: 1,
           biaya: 1,
-          program_group: {
-            $arrayElemAt: [
-              { $split: ['$program', ' + '] },
-              0
-            ]
+          group_program: {
+            $ifNull: ['$program_info.group_program', '$program']
           }
         }
       },
       {
         $group: {
-          _id: '$program_group',
+          _id: '$group_program',
           programs: { $addToSet: '$program' },
           total_subscriber: { $sum: 1 },
           total_biaya: { $sum: '$biaya' }

@@ -40,6 +40,7 @@ interface Program {
   nama: string;
   kode: string;
   biaya: number;
+  group_program?: string;
   status_aktv?: boolean;
   input_date?: string;
   update_date?: string;
@@ -53,7 +54,7 @@ export default function Program() {
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Program>({ nama: '', kode: '', biaya: 0, input_by: '' });
+  const [formData, setFormData] = useState<Program>({ nama: '', kode: '', biaya: 0, group_program: '', input_by: '' });
   const { user } = useAppStore();
 
   // Formatted input for biaya
@@ -79,6 +80,7 @@ export default function Program() {
         return axiosInstance.put(`/master/program/${editId}`, {
           nama: payload.nama,
           biaya: payload.biaya,
+          group_program: payload.group_program,
           update_by: user?.name || 'Unknown',
         });
       }
@@ -94,6 +96,7 @@ export default function Program() {
       return axiosInstance.post('/master/program', {
         nama: payload.nama,
         biaya: payload.biaya,
+        group_program: payload.group_program,
         input_by: payload.input_by
       });
     },
@@ -194,7 +197,7 @@ export default function Program() {
   const handleCloseModal = () => {
     setModalOpen(false);
     setEditId(null);
-    setFormData({ nama: '', kode: '', biaya: 0, input_by: '' });
+    setFormData({ nama: '', kode: '', biaya: 0, group_program: '', input_by: '' });
     setFormattedBiaya('');
   };
 
@@ -232,6 +235,7 @@ export default function Program() {
               <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-50 hover:to-indigo-50 border-b border-blue-200/50">
                 <TableHead className="w-20 px-6 py-4 font-semibold text-gray-900">Kode</TableHead>
                 <TableHead className="w-64 px-6 py-4 font-semibold text-gray-900">Nama Program</TableHead>
+                <TableHead className="w-48 px-6 py-4 font-semibold text-gray-900">Group Program</TableHead>
                 <TableHead className="w-48 px-6 py-4 font-semibold text-gray-900">Biaya</TableHead>
                 <TableHead className="w-48 px-6 py-4 font-semibold text-gray-900">Input By</TableHead>
                 <TableHead className="w-32 px-6 py-4 text-right font-semibold text-gray-900">Aksi</TableHead>
@@ -240,7 +244,7 @@ export default function Program() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12">
+                  <TableCell colSpan={6} className="text-center py-12">
                     <div className="flex flex-col items-center space-y-3">
                       <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
                       <p className="text-gray-600 font-medium">Memuat data program...</p>
@@ -249,7 +253,7 @@ export default function Program() {
                 </TableRow>
               ) : programList.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12">
+                  <TableCell colSpan={6} className="text-center py-12">
                     <div className="flex flex-col items-center space-y-3">
                       <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center">
                         <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -265,6 +269,7 @@ export default function Program() {
                   <TableRow key={item._id} className="hover:bg-blue-50/50 transition-colors duration-200 border-b border-gray-100/50">
                     <TableCell className="w-20 px-6 py-4 font-semibold text-gray-900">{item.kode}</TableCell>
                     <TableCell className="w-64 px-6 py-4 font-medium text-gray-900">{item.nama}</TableCell>
+                    <TableCell className="w-48 px-6 py-4 text-gray-700">{item.group_program || '-'}</TableCell>
                     <TableCell className="w-48 px-6 py-4 text-gray-700 font-semibold">{formatCurrency(item.biaya)}</TableCell>
                     <TableCell className="w-48 px-6 py-4 text-gray-700">{item.input_by}</TableCell>
                     <TableCell className="w-32 px-6 py-4 text-right">
@@ -303,6 +308,17 @@ export default function Program() {
                 value={formData.nama}
                 onChange={e => setFormData({...formData, nama: e.target.value})}
                 placeholder="Masukkan nama program"
+                className="border-2 border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all duration-200"
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="group_program" className="text-sm font-semibold text-gray-700">Group Program</Label>
+              <Input
+                id="group_program"
+                value={formData.group_program || ''}
+                onChange={e => setFormData({...formData, group_program: e.target.value})}
+                placeholder="Masukkan group program"
                 className="border-2 border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all duration-200"
                 required
               />

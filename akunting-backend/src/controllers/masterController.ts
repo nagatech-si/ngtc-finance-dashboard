@@ -531,9 +531,9 @@ export const listProgram = async (req: Request, res: Response) => {
 
 export const createProgram = async (req: Request, res: Response) => {
   try {
-    const { nama, biaya } = req.body;
-    if (!nama || biaya === undefined || biaya === null) {
-      return res.status(400).json({ message: 'nama dan biaya required' });
+    const { nama, biaya, group_program } = req.body;
+    if (!nama || biaya === undefined || biaya === null || !group_program) {
+      return res.status(400).json({ message: 'nama, biaya, dan group_program required' });
     }
 
     if (biaya < 0) {
@@ -547,6 +547,7 @@ export const createProgram = async (req: Request, res: Response) => {
       nama,
       kode: finalKode,
       biaya,
+      group_program,
       input_date: new Date(),
       update_date: new Date(),
       delete_date: null,
@@ -566,7 +567,7 @@ export const createProgram = async (req: Request, res: Response) => {
 export const updateProgram = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { nama, biaya } = req.body;
+    const { nama, biaya, group_program } = req.body;
     const userId = resolveUserId(req);
 
     const old = await Program.findById(id);
@@ -582,6 +583,7 @@ export const updateProgram = async (req: Request, res: Response) => {
 
     old.nama = nama ?? old.nama;
     old.biaya = biaya ?? old.biaya;
+    old.group_program = group_program ?? old.group_program;
     old.update_date = new Date();
     old.update_by = userId;
     old.status_aktv = req.body.status_aktv ?? old.status_aktv;

@@ -4,6 +4,7 @@ export interface IProgram extends Document {
   nama: string;
   kode: string;
   biaya: number;
+  group_program: string;
   total_subscriber?: number;
   total_biaya_subscriber?: number;
   status_aktv: boolean;
@@ -19,6 +20,7 @@ const ProgramSchema: Schema = new Schema({
   nama: { type: String, required: true, unique: true },
   kode: { type: String, required: true, unique: true },
   biaya: { type: Number, required: true, min: 0 },
+    group_program: { type: String, required: true },
     total_subscriber: { type: Number, required: false, default: 0 },
     total_biaya_subscriber: { type: Number, required: false, default: 0 },
   status_aktv: { type: Boolean, default: true },
