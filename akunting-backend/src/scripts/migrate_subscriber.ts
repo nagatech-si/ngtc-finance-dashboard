@@ -32,7 +32,7 @@ export const migrateSubscriberFromCSV = async (csvPath: string) => {
 
     fs.createReadStream(csvPath)
       .pipe(csv({ separator: ";" }))
-      .on("data", (row) => {
+      .on("data", (row : any) => {
         results.push(row);
       })
       .on("end", async () => {
