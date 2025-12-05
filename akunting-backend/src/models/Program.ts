@@ -4,6 +4,8 @@ export interface IProgram extends Document {
   nama: string;
   kode: string;
   biaya: number;
+  total_subscriber?: number;
+  total_biaya_subscriber?: number;
   status_aktv: boolean;
   input_date: Date;
   update_date: Date;
@@ -17,6 +19,8 @@ const ProgramSchema: Schema = new Schema({
   nama: { type: String, required: true, unique: true },
   kode: { type: String, required: true, unique: true },
   biaya: { type: Number, required: true, min: 0 },
+    total_subscriber: { type: Number, required: false, default: 0 },
+    total_biaya_subscriber: { type: Number, required: false, default: 0 },
   status_aktv: { type: Boolean, default: true },
   input_date: { type: Date, default: Date.now },
   update_date: { type: Date, default: Date.now },

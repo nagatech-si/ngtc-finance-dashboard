@@ -1,6 +1,7 @@
 import fs from "fs";
 import csv from "csv-parser";
 import Subscriber from "../models/Subscriber";
+import Program from "../models/Program";
 
 
 // Resolve acting user from authenticated request only. Ignore client-supplied audit fields.
@@ -56,11 +57,29 @@ export const migrateSubscriberFromCSV = async (csvPath: string) => {
               program: programName,
               status_aktv: true
             }).sort({ input_date: -1 }).limit(1);
+            const programExists = await Program.findOne({ nama: programName });
+            if (!programExists) {
+              await Program.create({
+                nama: programName,
+                kode: programName.toUpperCase().replace(/\s+/g, '_'),
+                biaya: biaya,
+                total_subscriber: 0,
+                total_biaya_subscriber: 0,
+                input_by: resolveUserId(),
+              });
+              console.log(`ℹ️  Created new program: ${programName}`);
+            } else {
+              await Program.updateOne(
+                { nama: programName },
+                { $inc: { total_subscriber: 1, total_biaya_subscriber: biaya } }
+              );
+            }
+
 
             const prevSubscriber = lastSubscriber ? lastSubscriber.current_subscriber : 0;
             const currentSubscriber = prevSubscriber + 1;
             const prevBiaya = lastSubscriber ? lastSubscriber.current_biaya : 0;
-            const currentBiaya = biaya;
+            const currentBiaya = prevBiaya + biaya;
 
             const userId = resolveUserId();
             const newKode = await generateNextKode(Subscriber);

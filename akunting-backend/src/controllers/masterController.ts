@@ -639,23 +639,38 @@ export const createSubscriber = async (req: Request, res: Response) => {
       toko,
       alamat,
       daerah,
-      kode_program,
+      program: programName,
       vb_online,
+      biaya: customBiaya,
       tanggal,
       implementator,
       via
     } = req.body;
 
     // Validate required fields only
-    if (!toko || !daerah || !kode_program || !tanggal || !via) {
-      return res.status(400).json({ message: 'Toko, Daerah, Kode Program, Tanggal, dan Via wajib diisi' });
+    if (!toko || !daerah || !programName || !tanggal || !via) {
+      return res.status(400).json({ message: 'Toko, Daerah, Program, Tanggal, dan Via wajib diisi' });
     }
 
     // Get program details
-    const program = await Program.findOne({ kode: kode_program, status_aktv: true });
+    const program = await Program.findOne({ nama: programName, status_aktv: true });
     if (!program) {
       return res.status(400).json({ message: 'Program tidak ditemukan atau tidak aktif' });
     }
+
+    // Use custom biaya if provided, otherwise use program biaya
+    const subscriberBiaya = customBiaya !== undefined ? customBiaya : program.biaya;
+
+    // Calculate prev_subscriber, current_subscriber, prev_biaya, and current_biaya
+    const lastSubscriber = await Subscriber.findOne({
+      program: program.nama,
+      status_aktv: true
+    }).sort({ input_date: -1 }).limit(1);
+
+    const prevSubscriber = lastSubscriber ? lastSubscriber.current_subscriber : 0;
+    const currentSubscriber = prevSubscriber + 1;
+    const prevBiaya = lastSubscriber ? lastSubscriber.current_biaya : 0;
+    const currentBiaya = subscriberBiaya;
 
     const userId = resolveUserId(req);
     const finalKode = await generateNextKode(Subscriber);
@@ -667,13 +682,16 @@ export const createSubscriber = async (req: Request, res: Response) => {
       toko,
       alamat,
       daerah,
-      kode_program,
       program: program.nama,
       vb_online,
-      biaya: program.biaya,
+      biaya: subscriberBiaya,
       tanggal: new Date(tanggal),
       implementator,
       via,
+      prev_subscriber: prevSubscriber,
+      current_subscriber: currentSubscriber,
+      prev_biaya: prevBiaya,
+      current_biaya: currentBiaya,
       input_date: new Date(),
       update_date: new Date(),
       delete_date: null,
@@ -699,8 +717,9 @@ export const updateSubscriber = async (req: Request, res: Response) => {
       toko,
       alamat,
       daerah,
-      kode_program,
+      program: programName,
       vb_online,
+      biaya: customBiaya,
       tanggal,
       implementator,
       via
@@ -718,8 +737,8 @@ export const updateSubscriber = async (req: Request, res: Response) => {
     if (daerah !== undefined && !daerah) {
       return res.status(400).json({ message: 'Daerah wajib diisi' });
     }
-    if (kode_program !== undefined && !kode_program) {
-      return res.status(400).json({ message: 'Kode Program wajib diisi' });
+    if (programName !== undefined && !programName) {
+      return res.status(400).json({ message: 'Program wajib diisi' });
     }
     if (tanggal !== undefined && !tanggal) {
       return res.status(400).json({ message: 'Tanggal wajib diisi' });
@@ -728,31 +747,53 @@ export const updateSubscriber = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Via wajib diisi' });
     }
 
-    // Get program details if kode_program changed
-    let programName = old.program;
+    // Get program details if program changed
+    let programObj = null;
     let programBiaya = old.biaya;
+    let prevSubscriber = old.prev_subscriber;
+    let currentSubscriber = old.current_subscriber;
+    let prevBiaya = old.prev_biaya;
+    let currentBiaya = old.current_biaya;
 
-    if (kode_program && kode_program !== old.kode_program) {
-      const program = await Program.findOne({ kode: kode_program, status_aktv: true });
+    if (programName && programName !== old.program) {
+      const program = await Program.findOne({ nama: programName, status_aktv: true });
       if (!program) {
         return res.status(400).json({ message: 'Program tidak ditemukan atau tidak aktif' });
       }
-      programName = program.nama;
+      programObj = program;
       programBiaya = program.biaya;
+
+      // Recalculate prev_subscriber, current_subscriber, prev_biaya, and current_biaya for new program
+      const lastSubscriberForNewProgram = await Subscriber.findOne({
+        program: program.nama,
+        status_aktv: true,
+        _id: { $ne: id } // Exclude current subscriber
+      }).sort({ input_date: -1 }).limit(1);
+
+      prevSubscriber = lastSubscriberForNewProgram ? lastSubscriberForNewProgram.current_subscriber : 0;
+      currentSubscriber = prevSubscriber + 1;
+      prevBiaya = lastSubscriberForNewProgram ? lastSubscriberForNewProgram.current_biaya : 0;
+      currentBiaya = program.biaya;
     }
+
+    // Use custom biaya if provided, otherwise keep existing or use program biaya
+    const finalBiaya = customBiaya !== undefined ? customBiaya : programBiaya;
 
     old.no_ok = no_ok ?? old.no_ok;
     old.sales = sales ?? old.sales;
     old.toko = toko ?? old.toko;
     old.alamat = alamat ?? old.alamat;
     old.daerah = daerah ?? old.daerah;
-    old.kode_program = kode_program ?? old.kode_program;
-    old.program = programName;
+    old.program = programName ?? old.program;
     old.vb_online = vb_online ?? old.vb_online;
-    old.biaya = programBiaya;
+    old.biaya = finalBiaya;
     old.tanggal = tanggal ? new Date(tanggal) : old.tanggal;
     old.implementator = implementator ?? old.implementator;
     old.via = via ?? old.via;
+    old.prev_subscriber = prevSubscriber;
+    old.current_subscriber = currentSubscriber;
+    old.prev_biaya = prevBiaya;
+    old.current_biaya = currentBiaya;
     old.update_date = new Date();
     old.update_by = userId;
     old.status_aktv = req.body.status_aktv ?? old.status_aktv;

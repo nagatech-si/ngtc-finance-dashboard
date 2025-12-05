@@ -14,13 +14,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
   Table,
   TableBody,
   TableCell,
@@ -49,10 +42,13 @@ interface Subscriber {
   toko: string;
   alamat: string | null;
   daerah: string;
-  kode_program: string;
   program: string;
   vb_online: string | null;
   biaya: number;
+  prev_subscriber: number;
+  current_subscriber: number;
+  prev_biaya: number;
+  current_biaya: number;
   tanggal: string;
   implementator: string | null;
   via: 'VISIT' | 'ONLINE';
@@ -83,10 +79,13 @@ export default function Subscriber() {
     toko: '',
     alamat: null,
     daerah: '',
-    kode_program: '',
     program: '',
     vb_online: null,
     biaya: 0,
+    prev_subscriber: 0,
+    current_subscriber: 0,
+    prev_biaya: 0,
+    current_biaya: 0,
     tanggal: '',
     implementator: null,
     via: 'VISIT',
@@ -134,8 +133,9 @@ export default function Subscriber() {
           toko: payload.toko,
           alamat: payload.alamat,
           daerah: payload.daerah,
-          kode_program: payload.kode_program,
+          program: payload.program,
           vb_online: payload.vb_online,
+          biaya: payload.biaya,
           tanggal: payload.tanggal,
           implementator: payload.implementator,
           via: payload.via,
@@ -148,8 +148,9 @@ export default function Subscriber() {
         toko: payload.toko,
         alamat: payload.alamat,
         daerah: payload.daerah,
-        kode_program: payload.kode_program,
+        program: payload.program,
         vb_online: payload.vb_online,
+        biaya: payload.biaya,
         tanggal: payload.tanggal,
         implementator: payload.implementator,
         via: payload.via,
@@ -254,10 +255,13 @@ export default function Subscriber() {
       toko: '',
       alamat: null,
       daerah: '',
-      kode_program: '',
       program: '',
       vb_online: null,
       biaya: 0,
+      prev_subscriber: 0,
+      current_subscriber: 0,
+      prev_biaya: 0,
+      current_biaya: 0,
       tanggal: '',
       implementator: null,
       via: 'VISIT',
@@ -270,7 +274,6 @@ export default function Subscriber() {
   const handleProgramSelect = (program: Program) => {
     setFormData({
       ...formData,
-      kode_program: program.kode,
       program: program.nama,
       biaya: program.biaya,
     });
@@ -335,10 +338,13 @@ export default function Subscriber() {
                 toko: '',
                 alamat: null,
                 daerah: '',
-                kode_program: '',
                 program: '',
                 vb_online: null,
                 biaya: 0,
+                prev_subscriber: 0,
+                current_subscriber: 0,
+                prev_biaya: 0,
+                current_biaya: 0,
                 tanggal: '',
                 implementator: null,
                 via: 'VISIT',
@@ -486,6 +492,14 @@ export default function Subscriber() {
                                 <span className="font-medium text-gray-600">Daerah:</span>
                                 <span className="text-gray-900">{item.daerah}</span>
                               </div>
+                              <div className="flex justify-between">
+                                <span className="font-medium text-gray-600">Prev Subscriber:</span>
+                                <span className="text-gray-900">{item.prev_subscriber}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="font-medium text-gray-600">Current Subscriber:</span>
+                                <span className="text-gray-900">{item.current_subscriber}</span>
+                              </div>
                             </div>
                             <div className="space-y-2">
                               <div className="flex justify-between">
@@ -503,6 +517,14 @@ export default function Subscriber() {
                               <div className="flex justify-between">
                                 <span className="font-medium text-gray-600">Via:</span>
                                 <span className="text-gray-900">{item.via}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="font-medium text-gray-600">Prev Biaya:</span>
+                                <span className="text-gray-900">{formatCurrency(item.prev_biaya)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="font-medium text-gray-600">Current Biaya:</span>
+                                <span className="text-gray-900">{formatCurrency(item.current_biaya)}</span>
                               </div>
                             </div>
                             <div className="space-y-2">
@@ -605,9 +627,9 @@ export default function Subscriber() {
               <div className="grid gap-2">
                 <Label htmlFor="program" className="text-sm font-semibold text-gray-700">Program</Label>
                 <Select
-                  value={formData.kode_program}
+                  value={formData.program}
                   onValueChange={(value) => {
-                    const selectedProgram = programs.find(p => p.kode === value);
+                    const selectedProgram = programs.find(p => p.nama === value);
                     if (selectedProgram) {
                       handleProgramSelect(selectedProgram);
                     }
@@ -635,12 +657,12 @@ export default function Subscriber() {
                       filteredPrograms.map((program) => (
                         <SelectItem
                           key={program._id}
-                          value={program.kode}
+                          value={program.nama}
                           className="cursor-pointer hover:bg-blue-50"
                         >
                           <div className="flex items-center">
                             <Check
-                              className={`mr-2 h-4 w-4 ${formData.kode_program === program.kode ? "opacity-100" : "opacity-0"}`}
+                              className={`mr-2 h-4 w-4 ${formData.program === program.nama ? "opacity-100" : "opacity-0"}`}
                             />
                             {program.kode} - {program.nama} ({formatCurrency(program.biaya)})
                           </div>
@@ -677,7 +699,6 @@ export default function Subscriber() {
                   placeholder="0"
                   className="border-2 border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all duration-200"
                   required
-                  readOnly
                 />
               </div>
 

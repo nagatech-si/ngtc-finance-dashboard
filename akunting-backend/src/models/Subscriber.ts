@@ -7,13 +7,16 @@ export interface ISubscriber extends Document {
   toko: string;
   alamat: string | null;
   daerah: string;
-  kode_program: string;
   program: string;
   vb_online: string | null;
   biaya: number;
   tanggal: Date;
   implementator: string | null;
   via: 'VISIT' | 'ONLINE';
+  prev_subscriber: number;
+  current_subscriber: number;
+  prev_biaya: number;
+  current_biaya: number;
   status_aktv: boolean;
   input_date: Date;
   update_date: Date;
@@ -30,13 +33,16 @@ const SubscriberSchema: Schema = new Schema({
   toko: { type: String, required: true },
   alamat: { type: String, required: false, default: null },
   daerah: { type: String, required: true },
-  kode_program: { type: String, required: true },
   program: { type: String, required: true },
   vb_online: { type: String, required: false, default: null },
   biaya: { type: Number, required: true, min: 0 },
   tanggal: { type: Date, required: true },
   implementator: { type: String, required: false, default: null },
   via: { type: String, required: true, enum: ['VISIT', 'ONLINE'] },
+  prev_subscriber: { type: Number, required: true, default: 0 },
+  current_subscriber: { type: Number, required: true, default: 1 },
+  prev_biaya: { type: Number, required: true, default: 0 },
+  current_biaya: { type: Number, required: true, default: 0 },
   status_aktv: { type: Boolean, default: true },
   active: { type: Boolean, default: true },
   input_date: { type: Date, default: Date.now },
