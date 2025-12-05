@@ -610,3 +610,282 @@ function sortDataGross(arr: any) {
     grossMarginTahunan: sortDataGross(resultGrossMarginTahunan),
   });
 };
+
+export const subscriberGrowth = async (req: Request, res: Response) => {
+  try {
+    const tahun = String(req.query.tahun || new Date().getFullYear());
+    const Subscriber = require('../models/Subscriber').default;
+
+    // Urutan bulan dimulai dari Desember
+    const order = ["DEC", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV"];
+
+    // Pipeline untuk menghitung subscriber baru per bulan
+    const pipeline = [
+      {
+        $match: {
+          status_aktv: true,
+          tanggal: {
+            $gte: new Date(`${parseInt(tahun) - 1}-12-01`), // Mulai dari Desember tahun sebelumnya
+            $lt: new Date(`${parseInt(tahun)}-12-01`) // Sampai November tahun ini
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: {
+              format: "%Y-%m",
+              date: "$tanggal"
+            }
+          },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          bulan: {
+            $switch: {
+              branches: [
+                { case: { $eq: [{ $substr: ["$_id", 5, 2] }, "01"] }, then: "JAN" },
+                { case: { $eq: [{ $substr: ["$_id", 5, 2] }, "02"] }, then: "FEB" },
+                { case: { $eq: [{ $substr: ["$_id", 5, 2] }, "03"] }, then: "MAR" },
+                { case: { $eq: [{ $substr: ["$_id", 5, 2] }, "04"] }, then: "APR" },
+                { case: { $eq: [{ $substr: ["$_id", 5, 2] }, "05"] }, then: "MAY" },
+                { case: { $eq: [{ $substr: ["$_id", 5, 2] }, "06"] }, then: "JUN" },
+                { case: { $eq: [{ $substr: ["$_id", 5, 2] }, "07"] }, then: "JUL" },
+                { case: { $eq: [{ $substr: ["$_id", 5, 2] }, "08"] }, then: "AUG" },
+                { case: { $eq: [{ $substr: ["$_id", 5, 2] }, "09"] }, then: "SEP" },
+                { case: { $eq: [{ $substr: ["$_id", 5, 2] }, "10"] }, then: "OCT" },
+                { case: { $eq: [{ $substr: ["$_id", 5, 2] }, "11"] }, then: "NOV" },
+                { case: { $eq: [{ $substr: ["$_id", 5, 2] }, "12"] }, then: "DEC" }
+              ],
+              default: "UNKNOWN"
+            }
+          },
+          count: 1
+        }
+      },
+      {
+        $sort: {
+          "_id": 1
+        }
+      }
+    ];
+
+    const result = await Subscriber.aggregate(pipeline);
+
+    // Buat array lengkap untuk semua bulan dalam tahun fiskal (Desember tahun sebelumnya sampai November tahun ini)
+    const allMonths: Array<{bulan: string, count: number, year: number}> = [];
+    const startYear = parseInt(tahun) - 1; // Mulai dari Desember tahun sebelumnya
+
+    for (let i = 0; i < 12; i++) {
+      const monthName = order[i]; // Langsung ambil dari order array
+      const year = (i === 0) ? startYear : parseInt(tahun); // Hanya bulan pertama (DEC) yang tahun sebelumnya
+      allMonths.push({
+        bulan: monthName,
+        count: 0,
+        year: year
+      });
+    }
+
+    // Isi data aktual
+    result.forEach((item: any) => {
+      const monthIndex = order.indexOf(item.bulan);
+      if (monthIndex !== -1) {
+        allMonths[monthIndex].count = item.count;
+      }
+    });
+
+    // Hitung total subscriber
+    const totalSubscriber = await Subscriber.countDocuments({
+      status_aktv: true,
+      tanggal: {
+        $lt: new Date(`${parseInt(tahun)}-12-01`) // Sampai akhir November tahun ini
+      }
+    });
+
+    res.json({
+      success: true,
+      tahun,
+      totalSubscriber,
+      data: allMonths
+    });
+
+  } catch (error) {
+    console.error('❌ Error in subscriberGrowth:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const subscriberCumulative = async (req: Request, res: Response) => {
+  try {
+    const tahun = String(req.query.tahun || new Date().getFullYear());
+    const Subscriber = require('../models/Subscriber').default;
+
+    // Urutan bulan dimulai dari Desember
+    const order = ["DEC", "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV"];
+
+    // Buat array lengkap untuk semua bulan dalam tahun fiskal (Desember tahun sebelumnya sampai November tahun ini)
+    const allMonths: Array<{bulan: string, total: number, year: number}> = [];
+    const startYear = parseInt(tahun) - 1; // Mulai dari Desember tahun sebelumnya
+
+    for (let i = 0; i < 12; i++) {
+      const monthName = order[i]; // Langsung ambil dari order array
+      const year = (i === 0) ? startYear : parseInt(tahun); // Hanya bulan pertama (DEC) yang tahun sebelumnya
+      allMonths.push({
+        bulan: monthName,
+        total: 0,
+        year: year
+      });
+    }
+
+    // Hitung total kumulatif untuk setiap bulan
+    let cumulativeTotal = 0;
+    for (let i = 0; i < 12; i++) {
+      const monthName = order[i];
+      const year = (i === 0) ? startYear : parseInt(tahun);
+
+      // Tentukan tanggal akhir untuk bulan ini
+      let endDate: Date;
+      if (i === 0) { // DEC tahun sebelumnya
+        endDate = new Date(`${startYear}-12-31`);
+      } else if (i === 11) { // NOV tahun ini
+        endDate = new Date(`${parseInt(tahun)}-11-30`);
+      } else {
+        // Untuk bulan lainnya, gunakan akhir bulan
+        const monthNum = i; // 0 = JAN, 1 = FEB, ..., 10 = NOV
+        const nextMonth = monthNum + 1;
+        const endYear = nextMonth > 11 ? parseInt(tahun) + 1 : parseInt(tahun);
+        const endMonth = nextMonth > 11 ? 0 : nextMonth;
+        endDate = new Date(`${endYear}-${String(endMonth + 1).padStart(2, '0')}-01`);
+        endDate.setDate(endDate.getDate() - 1); // Akhir bulan sebelumnya
+      }
+
+      // Hitung total subscriber sampai akhir bulan ini
+      const count = await Subscriber.countDocuments({
+        status_aktv: true,
+        tanggal: {
+          $lte: endDate
+        }
+      });
+
+      allMonths[i].total = count;
+    }
+
+    // Total subscriber akhir tahun fiskal
+    const totalSubscriber = await Subscriber.countDocuments({
+      status_aktv: true,
+      tanggal: {
+        $lte: new Date(`${parseInt(tahun)}-11-30`) // Sampai akhir November tahun ini
+      }
+    });
+
+    res.json({
+      success: true,
+      tahun,
+      totalSubscriber,
+      data: allMonths
+    });
+
+  } catch (error) {
+    console.error('❌ Error in subscriberCumulative:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+export const subscriberByProgram = async (req: Request, res: Response) => {
+  try {
+    const tahun = String(req.query.tahun || new Date().getFullYear());
+    let bulan = req.query.bulan || new Date().toLocaleString('en-US', { month: 'short' }).toUpperCase();
+
+    // Jika bulan adalah ANNUAL, gunakan NOV (bulan akhir tahun fiskal)
+    if (bulan === 'ANNUAL') {
+      bulan = 'NOV';
+    }
+
+    const Subscriber = require('../models/Subscriber').default;
+
+    // Tentukan tanggal akhir berdasarkan bulan dan tahun yang dipilih
+    const bulanMap: { [key: string]: number } = {
+      'JAN': 0, 'FEB': 1, 'MAR': 2, 'APR': 3, 'MAY': 4, 'JUN': 5,
+      'JUL': 6, 'AUG': 7, 'SEP': 8, 'OCT': 9, 'NOV': 10, 'DEC': 11
+    };
+
+    const bulanIndex = bulanMap[bulan as string] || 0;
+    const endDate = new Date(parseInt(tahun), bulanIndex + 1, 0); // Akhir bulan yang dipilih
+
+    // Pipeline untuk menghitung subscriber per program sampai bulan ini
+    const pipeline = [
+      {
+        $match: {
+          status_aktv: true,
+          tanggal: {
+            $lte: endDate
+          }
+        }
+      },
+      {
+        $project: {
+          program: 1,
+          biaya: 1,
+          program_group: {
+            $arrayElemAt: [
+              { $split: ['$program', ' + '] },
+              0
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: '$program_group',
+          programs: { $addToSet: '$program' },
+          total_subscriber: { $sum: 1 },
+          total_biaya: { $sum: '$biaya' }
+        }
+      },
+      {
+        $project: {
+          program: '$_id',
+          programs: 1,
+          total_subscriber: 1,
+          total_biaya: 1,
+          avg_biaya_per_subscriber: {
+            $cond: {
+              if: { $eq: ['$total_subscriber', 0] },
+              then: 0,
+              else: { $divide: ['$total_biaya', '$total_subscriber'] }
+            }
+          }
+        }
+      },
+      {
+        $sort: {
+          total_subscriber: -1
+        }
+      }
+    ];
+
+    const result = await Subscriber.aggregate(pipeline);
+
+    // Hitung total keseluruhan
+    const totalKeseluruhan = await Subscriber.countDocuments({
+      status_aktv: true,
+      tanggal: {
+        $lte: endDate
+      }
+    });
+
+    res.json({
+      success: true,
+      tahun,
+      bulan: bulan === 'NOV' && req.query.bulan === 'ANNUAL' ? 'ANNUAL (NOV)' : bulan,
+      totalKeseluruhan,
+      data: result
+    });
+
+  } catch (error) {
+    console.error('❌ Error in subscriberByProgram:', error);
+    res.status(500).json({ message: 'Server error', error });
+  }
+};

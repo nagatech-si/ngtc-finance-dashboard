@@ -4,7 +4,10 @@ import { ChartDonut } from '@/components/ChartDonut';
 import { ChartBar } from '@/components/ChartBar';
 import StackedBarKategori from '@/components/StackedBarKategori';
 import LineChartKategori from '@/components/LineChartKategori';
+import { SubscriberCombinedChart } from '@/components/SubscriberCombinedChart';
+import { SubscriberByProgramChart } from '@/components/SubscriberByProgramChart';
 import axiosInstance from '@/api/axiosInstance';
+import { fetchSubscriberCombined, fetchSubscriberByProgram } from '@/api/fiscal';
 import {
   Card,
   CardContent,
@@ -77,6 +80,20 @@ export default function Dashboard() {
       const response = await axiosInstance.get(url);
       return response.data;
     },
+    enabled: !!year,
+  });
+
+  // Query untuk subscriber combined data
+  const { data: subscriberCombinedData, isLoading: isSubscriberCombinedLoading } = useQuery({
+    queryKey: ['subscriber-combined', year],
+    queryFn: () => fetchSubscriberCombined(year),
+    enabled: !!year,
+  });
+
+  // Query untuk subscriber by program
+  const { data: subscriberByProgramData, isLoading: isSubscriberByProgramLoading } = useQuery({
+    queryKey: ['subscriber-by-program', year, month],
+    queryFn: () => fetchSubscriberByProgram(year, month),
     enabled: !!year,
   });
 
@@ -443,6 +460,55 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Subscriber Combined Chart */}
+            {subscriberCombinedData && subscriberCombinedData.length > 0 && (
+              <div className="mb-8">
+                <Card className="border-2 border-dashed border-emerald-200 bg-white backdrop-blur-sm hover:border-emerald-400 transition-all duration-300">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-2xl font-bold text-gray-900">Subscriber Analytics</CardTitle>
+                      <div className="flex flex-col items-end space-y-1">
+                        <span className="font-semibold text-blue-600">
+                          Total Growth: {subscriberCombinedData.reduce((sum, item) => sum + item.count, 0).toLocaleString('id-ID')} subscribers
+                        </span>
+                        <span className="font-semibold text-green-600">
+                          Total Subscribers: {subscriberCombinedData[subscriberCombinedData.length - 1]?.total.toLocaleString('id-ID') || 0}
+                        </span>
+                      </div>
+                    </div>
+                    <CardDescription className="text-gray-600 text-sm">
+                      Combined view: Monthly additions (bars) & cumulative total (line) in {year} (fiscal year starting December)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <SubscriberCombinedChart data={subscriberCombinedData} />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Subscriber by Program Chart */}
+            {subscriberByProgramData && subscriberByProgramData.length > 0 && (
+              <div className="mb-8">
+                <Card className="border-2 border-dashed border-purple-200 bg-white backdrop-blur-sm hover:border-purple-400 transition-all duration-300">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-2xl font-bold text-gray-900">Subscriber by Program</CardTitle>
+                      <span className="font-semibold text-blue-600">
+                        Total Subscribers: {subscriberByProgramData.reduce((sum, item) => sum + item.total_subscriber, 0).toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                    <CardDescription className="text-gray-600 text-sm">
+                      Cumulative subscribers by program up to {month} {year}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <SubscriberByProgramChart data={subscriberByProgramData} />
                   </CardContent>
                 </Card>
               </div>
