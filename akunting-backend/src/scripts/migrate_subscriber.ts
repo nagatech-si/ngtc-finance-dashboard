@@ -130,7 +130,7 @@ export const migrateSubscriberFromCSV = async (csvPath: string) => {
 
         resolve();
       })
-      .on("error", (error) => {
+      .on("error", (error: any) => {
         console.error("❌ Error reading CSV:", error);
         reject(error);
       });

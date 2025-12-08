@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import multer from 'multer';
+import multer, { StorageEngine } from 'multer';
 import {
   listBudgets, createBudget, updateBudget, deleteBudget,
   listBudgetUsages, createBudgetUsage, updateBudgetUsage, deleteBudgetUsage
@@ -9,11 +9,11 @@ import { authenticate } from '../middleware/authMiddleware';
 const router = Router();
 
 // Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+const storage: StorageEngine = multer.diskStorage({
+  destination: (req: Express.Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     cb(null, 'uploads/budgets/');
   },
-  filename: (req, file, cb) => {
+  filename: (req: Express.Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     cb(null, file.fieldname + '-' + uniqueSuffix + '.' + file.mimetype.split('/')[1]);
   }

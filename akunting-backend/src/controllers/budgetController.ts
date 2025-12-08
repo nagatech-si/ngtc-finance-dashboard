@@ -20,15 +20,6 @@ import multer from 'multer';
 import Budget from '../models/Budget';
 import BudgetUsage from '../models/BudgetUsage';
 
-// Extend Request type to include file from multer
-declare global {
-  namespace Express {
-    interface Request {
-      file?: Express.Multer.File;
-    }
-  }
-}
-
 // Budget CRUD operations
 export const listBudgets = async (req: Request, res: Response) => {
   try {
@@ -141,7 +132,7 @@ export const listBudgetUsages = async (req: Request, res: Response) => {
   }
 };
 
-export const createBudgetUsage = async (req: Request, res: Response) => {
+export const createBudgetUsage = async (req: any, res: Response) => {
   try {
     const { budget_id, amount_used, description, usage_date } = req.body;
     if (!budget_id || !amount_used || !description || !usage_date) {
@@ -191,7 +182,7 @@ export const createBudgetUsage = async (req: Request, res: Response) => {
   }
 };
 
-export const updateBudgetUsage = async (req: Request, res: Response) => {
+export const updateBudgetUsage = async (req: any, res: Response) => {
   try {
     const { id } = req.params;
     const { amount_used, description, usage_date } = req.body;
