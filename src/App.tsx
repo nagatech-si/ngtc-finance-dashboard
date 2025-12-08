@@ -25,6 +25,8 @@ import Transaksi from "./pages/Transaksi";
 import TutupBuku from "./pages/TutupBuku";
 import NotFound from "./pages/NotFound";
 import PublicDashboard from "./pages/public-dashboard";
+import Budget from "./pages/Budget";
+import BudgetUsage from "./pages/BudgetUsage";
 
 const queryClient = new QueryClient();
 
@@ -102,6 +104,28 @@ const App = () => (
               <ProtectedRoute>
                 <MainLayout>
                   <Subscriber />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/budget/budget"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <Budget />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/budget/budget-usage"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <BudgetUsage />
                 </MainLayout>
               </ProtectedRoute>
             }

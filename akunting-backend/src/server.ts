@@ -10,6 +10,7 @@ import dashboardRoutes from './routes/dashboardRoutes';
 import masterRoutes from './routes/masterRoutes';
 import fiscalRoutes from './routes/fiscalRoutes';
 import subscriberRoutes from './routes/subscriberRoutes';
+import budgetRoutes from './routes/budgetRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -21,6 +22,9 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('dev'));
+
+// Serve static files for uploads
+app.use('/uploads', express.static('uploads'));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -44,6 +48,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/master', masterRoutes);
 app.use('/api/fiscal', fiscalRoutes);
 app.use('/api/subscriber', subscriberRoutes);
+app.use('/api/budget', budgetRoutes);
 
 // 404 handler
 app.use((req, res) => {

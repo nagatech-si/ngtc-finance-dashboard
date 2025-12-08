@@ -10,6 +10,7 @@ import {
   LogOut,
   Wallet,
   Users,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -44,6 +45,7 @@ import {
 export default function AppSidebar() {
   const location = useLocation();
   const [isMasterOpen, setIsMasterOpen] = useState(false);
+  const [isBudgetOpen, setIsBudgetOpen] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const { user, logout } = useAppStore();
   const navigate = useNavigate();
@@ -51,6 +53,9 @@ export default function AppSidebar() {
   useEffect(() => {
     if (location.pathname.startsWith("/master")) {
       setIsMasterOpen(true);
+    }
+    if (location.pathname.startsWith("/budget")) {
+      setIsBudgetOpen(true);
     }
   }, [location.pathname]);
 
@@ -187,6 +192,7 @@ export default function AppSidebar() {
                         <SidebarMenuSubItem key={item.key}>
                           <NavLink to={`/master/${item.key}`}>
                             <SidebarMenuSubButton
+                              asChild
                               isActive={
                                 location.pathname === `/master/${item.key}`
                               }
@@ -200,11 +206,73 @@ export default function AppSidebar() {
                               )}
                               style={{ animationDelay: `${index * 100}ms` }}
                             >
-                              <div className="w-2 h-2 rounded-full bg-current opacity-60 group-hover:opacity-100 transition-opacity" />
-                              <span className="font-medium text-sm">{item.label}</span>
-                              {location.pathname === `/master/${item.key}` && (
-                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-r-full" />
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-current opacity-60 group-hover:opacity-100 transition-opacity" />
+                                <span className="font-medium text-sm">{item.label}</span>
+                                {location.pathname === `/master/${item.key}` && (
+                                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-r-full" />
+                                )}
+                              </div>
+                            </SidebarMenuSubButton>
+                          </NavLink>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  )}
+                </SidebarMenuItem>
+
+                {/* BUDGET */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    onClick={() => setIsBudgetOpen(!isBudgetOpen)}
+                    className={cn(
+                      "group relative rounded-xl px-4 py-4 text-slate-300 hover:text-white transition-all duration-300",
+                      "hover:bg-gradient-to-r hover:from-green-600/20 hover:to-emerald-600/20",
+                      "hover:shadow-lg hover:shadow-green-500/10",
+                       "py-5",
+                      isBudgetOpen && "bg-gradient-to-r from-green-700/60 to-emerald-600/60 text-white shadow-lg shadow-green-500/20"
+                    )}
+                  >
+                    <DollarSign className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
+                    <span className="font-medium">Budget Control</span>
+                    <ChevronDown
+                      className={cn(
+                        "w-4 h-4 ml-auto transition-all duration-300 group-hover:scale-110",
+                        isBudgetOpen && "rotate-180 text-green-400"
+                      )}
+                    />
+                  </SidebarMenuButton>
+
+                  {isBudgetOpen && (
+                    <SidebarMenuSub className="ml-8 mt-3 space-y-2 animate-in slide-in-from-top-2 duration-300">
+                      {[
+                        { key: "budget", label: "Master Budget" },
+                        { key: "budget-usage", label: "Budget Usage" },
+                      ].map((item, index) => (
+                        <SidebarMenuSubItem key={item.key}>
+                          <NavLink to={`/budget/${item.key}`}>
+                            <SidebarMenuSubButton
+                              asChild
+                              isActive={
+                                location.pathname === `/budget/${item.key}`
+                              }
+                              className={cn(
+                                "group relative rounded-lg px-3 py-3 text-slate-400 hover:text-white transition-all duration-300",
+                                "hover:bg-gradient-to-r hover:from-green-600/40 hover:to-emerald-600/40",
+                                "hover:translate-x-1",
+                                "data-[active=true]:bg-gradient-to-r data-[active=true]:from-green-600/30 data-[active=true]:to-emerald-600/30",
+                                "data-[active=true]:text-white data-[active=true]:shadow-md data-[active=true]:shadow-green-500/20",
+                                 "py-5"
                               )}
+                              style={{ animationDelay: `${index * 100}ms` }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-current opacity-60 group-hover:opacity-100 transition-opacity" />
+                                <span className="font-medium text-sm">{item.label}</span>
+                                {location.pathname === `/budget/${item.key}` && (
+                                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-4 bg-gradient-to-b from-green-400 to-emerald-500 rounded-r-full" />
+                                )}
+                              </div>
                             </SidebarMenuSubButton>
                           </NavLink>
                         </SidebarMenuSubItem>
