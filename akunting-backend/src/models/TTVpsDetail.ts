@@ -3,6 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export type VpsStatus = 'OPEN' | 'DONE';
 
 export interface IVpsDetailItem {
+  _id?: mongoose.Types.ObjectId; // Mongoose subdocument _id
   chain_id?: string; // grouping id for a schedule chain
   ref_id?: string; // link to VpsSubscription _id for sync
   toko: string;

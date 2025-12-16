@@ -183,7 +183,7 @@ export const updateItemStatus = async (req: Request, res: Response) => {
 
     const doc = await TTVpsDetail.findOne({ periode });
     if (!doc) return res.status(404).json({ message: 'periode not found' });
-    const item = doc.detail.id(itemId);
+    const item = doc.detail.find((d: any) => String(d._id) === String(itemId));
     if (!item) return res.status(404).json({ message: 'item not found' });
     item.status = status;
     doc.update_date = new Date();
@@ -226,7 +226,7 @@ export const updateItem = async (req: Request, res: Response) => {
     const userTag = (req as any).user?.username || (req as any).user?._id || 'system';
     const doc = await TTVpsDetail.findOne({ periode });
     if (!doc) return res.status(404).json({ message: 'periode not found' });
-    const item = doc.detail.id(itemId) as any;
+    const item = doc.detail.find((d: any) => String(d._id) === String(itemId));
     if (!item) return res.status(404).json({ message: 'item not found' });
 
     // Validasi start (jika diubah) tetap dalam periode
