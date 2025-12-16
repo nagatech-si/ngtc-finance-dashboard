@@ -7,6 +7,7 @@ import LineChartKategori from '@/components/LineChartKategori';
 import { SubscriberCombinedChart } from '@/components/SubscriberCombinedChart';
 import { SubscriberByProgramChart } from '@/components/SubscriberByProgramChart';
 import axiosInstance from '@/api/axiosInstance';
+import { fetchAggregatesByPeriode } from '@/api/ttvps';
 import { fetchSubscriberCombined, fetchSubscriberByProgram } from '@/api/fiscal';
 import {
   Card,
@@ -47,6 +48,7 @@ export default function Dashboard() {
   const [year, setYear] = useState<string>('');
   const [month, setMonth] = useState<string>('ANNUAL');
   const [chartType, setChartType] = useState<'donut' | 'bar'>('donut');
+  const [vpsMetric, setVpsMetric] = useState<'estimasi' | 'realisasi'>('estimasi');
   const userSelectedYearRef = useRef(false);
   const handleYearChange = (val: string) => {
     userSelectedYearRef.current = true;
@@ -81,6 +83,31 @@ export default function Dashboard() {
       return response.data;
     },
     enabled: !!year,
+  });
+
+  // VPS monthly aggregates (Dec–Nov fiscal year)
+  const { data: vpsMonthlyData } = useQuery({
+    queryKey: ['vps-tt-aggregates', year],
+    enabled: !!year,
+    queryFn: async () => {
+      const yr = parseInt(year, 10);
+      const months = [
+        { label: 'DEC', period: `${yr - 1}-12` },
+        { label: 'JAN', period: `${yr}-01` },
+        { label: 'FEB', period: `${yr}-02` },
+        { label: 'MAR', period: `${yr}-03` },
+        { label: 'APR', period: `${yr}-04` },
+        { label: 'MAY', period: `${yr}-05` },
+        { label: 'JUN', period: `${yr}-06` },
+        { label: 'JUL', period: `${yr}-07` },
+        { label: 'AUG', period: `${yr}-08` },
+        { label: 'SEP', period: `${yr}-09` },
+        { label: 'OCT', period: `${yr}-10` },
+        { label: 'NOV', period: `${yr}-11` },
+      ];
+      const results = await Promise.all(months.map(m => fetchAggregatesByPeriode(m.period)));
+      return months.map((m, idx) => ({ label: m.label, agg: results[idx] }));
+    }
   });
 
   // Query untuk subscriber combined data
@@ -294,6 +321,58 @@ export default function Dashboard() {
           </Card>
         ) : (
           <>
+            {/* VPS Monthly Aggregates */}
+            {vpsMonthlyData && vpsMonthlyData.length > 0 && (
+              <div className="mb-8">
+                <Card className="border-2 border-dashed border-blue-200 bg-white backdrop-blur-sm hover:border-blue-400 transition-all duration-300">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-2xl font-bold text-gray-900">Perolehan VPS {year}</CardTitle>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setVpsMetric('estimasi')}
+                          className={`px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ${
+                            vpsMetric === 'estimasi' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >Estimasi</button>
+                        <button
+                          onClick={() => setVpsMetric('realisasi')}
+                          className={`px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ${
+                            vpsMetric === 'realisasi' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >Realisasi</button>
+                      </div>
+                    </div>
+                    <CardDescription className="text-gray-600 text-sm">
+                      Fiscal year starts December; toggle between estimasi and realisasi
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      const chartData = vpsMonthlyData.map(({ label, agg }) => ({
+                        name: label,
+                        value: agg ? (vpsMetric === 'estimasi' ? agg.estimasi : agg.realisasi) : 0,
+                      }));
+                      const total = chartData.reduce((s, d) => s + d.value, 0);
+                      return (
+                        <div>
+                          <div className="mb-3">
+                            <span className="text-sm font-medium text-blue-600">
+                              Total: Rp {total.toLocaleString('id-ID')}
+                            </span>
+                          </div>
+                          <ChartBar
+                            data={chartData}
+                            totalKategori={total}
+                            ticks={[0, 500_000_000, 1_500_000_000]}
+                          />
+                        </div>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             {/* Monthly trend chart per kategori */}
             {pertahunData.length > 0 && (

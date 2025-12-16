@@ -14,6 +14,7 @@ interface ChartData {
 interface ChartBarProps {
   data: ChartData[];
   totalKategori?: number;
+  ticks?: number[]; // custom Y-axis ticks
 }
 
 const COLORS = [
@@ -24,7 +25,7 @@ const COLORS = [
   'hsl(var(--chart-5))',
 ];
 
-export function ChartBar({ data, totalKategori }: ChartBarProps) {
+export function ChartBar({ data, totalKategori, ticks }: ChartBarProps) {
   function CustomTooltip({ active, payload, label }: {
     active?: boolean;
     payload?: Array<{
@@ -113,10 +114,8 @@ export function ChartBar({ data, totalKategori }: ChartBarProps) {
             }}
           />
           <YAxis
-            tickFormatter={(value) => new Intl.NumberFormat('id-ID', {
-              notation: 'compact',
-              compactDisplay: 'short'
-            }).format(value)}
+            ticks={ticks}
+            tickFormatter={(value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)}
             fontSize={12}
           />
           <Tooltip content={<CustomTooltip />} />

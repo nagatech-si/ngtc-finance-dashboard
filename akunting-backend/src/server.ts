@@ -11,6 +11,8 @@ import masterRoutes from './routes/masterRoutes';
 import fiscalRoutes from './routes/fiscalRoutes';
 import subscriberRoutes from './routes/subscriberRoutes';
 import budgetRoutes from './routes/budgetRoutes';
+import vpsRoutes from './routes/vpsRoutes';
+import vpsTTRoutes from './routes/vpsTTRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -49,6 +51,8 @@ app.use('/api/master', masterRoutes);
 app.use('/api/fiscal', fiscalRoutes);
 app.use('/api/subscriber', subscriberRoutes);
 app.use('/api/budget', budgetRoutes);
+app.use('/api/vps', vpsRoutes);
+app.use('/api/tt-vps', vpsTTRoutes);
 
 // 404 handler
 app.use((req, res) => {

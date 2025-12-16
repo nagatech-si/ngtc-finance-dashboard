@@ -1,0 +1,526 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query';
+import { createSchedule, deleteItem as deleteTTItem, fetchAvailableSubscribers, fetchDetailsByPeriode, updateItemStatus, updateItem as updateTTItem, TTVpsDetailItemDTO, VpsSubscriberOption } from '@/api/ttvps';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { toast } from 'react-toastify';
+import { format } from 'date-fns';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { CheckCircle2, Trash2, Pencil } from 'lucide-react';
+
+function currency(n: number) {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
+}
+
+function parseCurrencyInput(value: string): number {
+  // Remove non-digit characters
+  const digits = value.replace(/[^0-9]/g, '');
+  return digits ? parseInt(digits, 10) : 0;
+}
+
+function formatCurrencyInput(n: number): string {
+  return currency(n);
+}
+
+function enumerateMonths(from: string, to: string): string[] {
+  const res: string[] = [];
+  const [fy, fm] = from.split('-').map(Number);
+  const [ty, tm] = to.split('-').map(Number);
+  if (!fy || !fm || !ty || !tm) return res;
+  let y = fy, m = fm;
+  while (y < ty || (y === ty && m <= tm)) {
+    res.push(`${y}-${String(m).padStart(2,'0')}`);
+    m += 1;
+    if (m > 12) { m = 1; y += 1; }
+  }
+  return res;
+}
+
+export default function VPS() {
+  const qc = useQueryClient();
+  // Filters
+  const [open, setOpen] = useState(false);
+  const [editItem, setEditItem] = useState<(TTVpsDetailItemDTO & { __periode: string }) | null>(null);
+  const [openEdit, setOpenEdit] = useState(false);
+
+  // Filters: period (from/to month), status, and search term
+  const currentMonth = useMemo(() => format(new Date(), 'yyyy-MM'), []);
+  const [periodFrom, setPeriodFrom] = useState<string>(currentMonth);
+  const [periodTo, setPeriodTo] = useState<string>(currentMonth);
+  const [statusFilter, setStatusFilter] = useState<'OPEN'|'DONE'|'ALL'>('OPEN');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
+  const months = useMemo(() => enumerateMonths(periodFrom, periodTo), [periodFrom, periodTo]);
+  const detailQueries = useQueries({
+    queries: months.map((p) => ({
+      queryKey: ['tt-vps-details', p],
+      queryFn: () => fetchDetailsByPeriode(p),
+    })),
+    combine: (results) => ({
+      data: results.map(r => r.data).filter(Boolean) as any,
+      pending: results.some(r => r.isLoading),
+    })
+  });
+
+  const combinedItems = useMemo(() => {
+    const docs = (detailQueries as any).data as { periode: string; detail: TTVpsDetailItemDTO[] }[];
+    const items = docs.flatMap(doc => doc.detail.map(d => ({ ...d, __periode: doc.periode })));
+    const containsText = (s: string, q: string) => s?.toLowerCase().includes(q.toLowerCase());
+    return items.filter((it) => {
+      const matchStatus = statusFilter === 'ALL' ? true : it.status === statusFilter;
+      const matchSearch = !searchTerm || containsText(it.toko, searchTerm) || containsText(it.program, searchTerm);
+      return matchStatus && matchSearch;
+    });
+  }, [detailQueries, statusFilter, searchTerm]);
+
+  const startCreate = () => { setEditItem(null); setOpen(true); };
+  const startEdit = (item: any) => { setEditItem(item); setOpenEdit(true); };
+
+  const delMut = useMutation({
+    mutationFn: ({ periode, itemId }: { periode: string; itemId: string }) => deleteTTItem({ periode, itemId }),
+    onSuccess: () => { toast.success('Data dihapus'); qc.invalidateQueries({ queryKey: ['tt-vps-details'] }); },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Gagal hapus data'),
+  });
+
+  const updateStatusMut = useMutation({
+    mutationFn: ({ periode, itemId, status }: { periode: string; itemId: string; status: 'OPEN' | 'DONE' }) => updateItemStatus({ periode, itemId, status }),
+    onSuccess: () => { toast.success('Status diperbarui'); qc.invalidateQueries({ queryKey: ['tt-vps-details'] }); },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Gagal ubah status'),
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">VPS Subscription</h2>
+        <Button
+          onClick={startCreate}
+          className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+        >
+          Tambah VPS
+        </Button>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white/50 rounded-lg p-4 border-2 border-dashed border-blue-200">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+          <div>
+            <Label>Periode Dari</Label>
+            <Input type="month" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} />
+          </div>
+          <div>
+            <Label>Periode Sampai</Label>
+            <Input type="month" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} />
+          </div>
+          <div>
+            <Label>Status</Label>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="OPEN">OPEN</SelectItem>
+                <SelectItem value="DONE">DONE</SelectItem>
+                <SelectItem value="ALL">ALL</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-2">
+            <Label>Search Data</Label>
+            <Input
+              placeholder="Cari berdasarkan toko/program..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="border-2 border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all duration-200"
+            />
+          </div>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Daftar VPS</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {(detailQueries as any).pending ? (
+            <div>Loading...</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="text-left border-b">
+                    <th className="py-2 pr-4">Toko</th>
+                    <th className="py-2 pr-4">Start Date</th>
+                    <th className="py-2 pr-4">Bulan</th>
+                    <th className="py-2 pr-4">Tempo</th>
+                    <th className="py-2 pr-4">Harga/Bln</th>
+                    <th className="py-2 pr-4">Total</th>
+                    <th className="py-2 pr-4">Status</th>
+                    <th className="py-2 pr-4">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {combinedItems?.map((item: any) => (
+                    <tr key={`${item.__periode}-${item._id}`} className="border-b">
+                      <td className="py-2 pr-4">{item.toko}</td>
+                      <td className="py-2 pr-4">{format(new Date(item.start), 'dd MMM yyyy')}</td>
+                      <td className="py-2 pr-4">{item.bulan}</td>
+                      <td className="py-2 pr-4">{format(new Date(item.tempo), 'dd MMM yyyy')}</td>
+                      <td className="py-2 pr-4">{currency(item.harga)}</td>
+                      <td className="py-2 pr-4">{currency(item.total_harga)}</td>
+                      <td className="py-2 pr-4">
+                        {item.status === 'DONE' ? (
+                          <span className="inline-flex items-center rounded-full bg-green-100 text-green-700 px-2 py-0.5 text-xs font-medium">DONE</span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-gray-200 text-gray-700 px-2 py-0.5 text-xs font-medium">OPEN</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4 flex gap-2">
+                        {item.status !== 'DONE' && (
+                          <ConfirmAction
+                            title="Selesaikan VPS?"
+                            description="Status akan diubah menjadi DONE. Lanjutkan?"
+                            actionText="Ya, Selesaikan"
+                            onConfirm={() => updateStatusMut.mutate({ periode: item.__periode, itemId: item._id, status: 'DONE' })}
+                          >
+                            <Button
+                              size="icon"
+                              aria-label="Tandai selesai"
+                              title="Tandai selesai"
+                              className="rounded-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-md hover:shadow-lg border border-white/10 transition-transform hover:scale-105"
+                              disabled={updateStatusMut.isPending}
+                            >
+                              <CheckCircle2 className="h-5 w-5" />
+                            </Button>
+                          </ConfirmAction>
+                        )}
+                        <Button size="icon" variant="secondary" onClick={() => startEdit(item)}><Pencil className="h-4 w-4" /></Button>
+                        <ConfirmAction
+                          title="Hapus VPS?"
+                          description="Data akan dihapus permanen. Lanjutkan?"
+                          actionText="Ya, Hapus"
+                          onConfirm={() => delMut.mutate({ periode: item.__periode, itemId: item._id })}
+                        >
+                          <Button size="icon" variant="destructive"><Trash2 className="h-4 w-4" /></Button>
+                        </ConfirmAction>
+                      </td>
+                    </tr>
+                  ))}
+                  {!combinedItems?.length && (
+                    <tr><td className="py-4 text-slate-500" colSpan={10}>Belum ada data</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <VpsFormDialog
+        open={open}
+        onOpenChange={setOpen}
+        editItem={null}
+        onSuccess={() => { setOpen(false); qc.invalidateQueries({ queryKey: ['tt-vps-details'] }); }}
+      />
+      <TTVpsEditDialog
+        open={openEdit}
+        onOpenChange={setOpenEdit}
+        item={editItem}
+        onSuccess={() => { setOpenEdit(false); qc.invalidateQueries({ queryKey: ['tt-vps-details'] }); }}
+      />
+    </div>
+  );
+}
+
+function VpsFormDialog({ open, onOpenChange, editItem, onSuccess }: { open: boolean; onOpenChange: (v: boolean) => void; editItem: null; onSuccess: () => void }) {
+  const { data: subs } = useQuery({ queryKey: ['vps-available-subs'], queryFn: fetchAvailableSubscribers, enabled: !editItem });
+  const qc = useQueryClient();
+  const createMut = useMutation({
+    mutationFn: (payload: { subscriberId?: string; startDate: string; months: number; discount?: number }) =>
+      createSchedule({ subscriber_id: payload.subscriberId, start: payload.startDate, bulan: payload.months, diskon: payload.discount }),
+    onSuccess: () => { toast.success('Data disimpan'); onSuccess(); qc.invalidateQueries({ queryKey: ['vps-available-subs'] }); qc.invalidateQueries({ queryKey: ['tt-vps-details'] }); },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Gagal simpan data'),
+  });
+  // Update/edit for TT items will be added after edit semantics are confirmed
+
+  const [subscriberId, setSubscriberId] = useState<string>('');
+  const selectedSub = useMemo(() => subs?.find(s => s._id === subscriberId), [subs, subscriberId]);
+  const pricePerMonth = selectedSub?.biaya || 0;
+
+  const [startDate, setStartDate] = useState<string>('');
+  const [monthsText, setMonthsText] = useState<string>('');
+  const [discount, setDiscount] = useState<number>(0);
+
+  useEffect(() => {
+    if (!open) {
+      setSubscriberId('');
+      setStartDate('');
+      setMonthsText('');
+      setDiscount(0);
+    }
+  }, [open]);
+
+  // Prefill values when editing and dialog opens
+  // No edit prefill for TT yet
+
+  const months = useMemo(() => {
+    const digits = (monthsText || '').replace(/[^0-9]/g, '');
+    if (!digits) return 0;
+    return parseInt(digits, 10);
+  }, [monthsText]);
+
+  const dueDate = useMemo(() => {
+    if (!startDate || !months || months <= 0) return '';
+    const d = new Date(startDate);
+    // next period start = startDate + months months
+    const next = new Date(d);
+    const day = next.getDate();
+    next.setMonth(next.getMonth() + months);
+    if (next.getDate() < day) {
+      next.setDate(0);
+    }
+    // due date = next start - 1 day
+    const due = new Date(next);
+    due.setDate(due.getDate() - 1);
+    return due.toISOString().slice(0,10);
+  }, [startDate, months]);
+
+  const gross = (pricePerMonth || 0) * (months || 0);
+  const net = Math.max(0, gross - (discount || 0));
+
+  const handleSubmit = () => {
+    if (!startDate || !months || months <= 0) return toast.error('Lengkapi form: jumlah bulan harus diisi (> 0)');
+    if (!subscriberId) return toast.error('Pilih toko terlebih dahulu');
+    createMut.mutate({ subscriberId, startDate, months, discount });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{editItem ? 'Edit VPS' : 'Tambah VPS'}</DialogTitle>
+        </DialogHeader>
+
+        {!editItem ? (
+          <div className="space-y-2">
+            <Label>Toko</Label>
+            <Select value={subscriberId} onValueChange={setSubscriberId}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Pilih Toko" /></SelectTrigger>
+              <SelectContent>
+                {subs?.map(s => (
+                  <SelectItem key={s._id} value={s._id}>{s.toko} — {currency(s.biaya)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label>Harga/Bln</Label>
+            <Input value={currency(pricePerMonth)} readOnly />
+          </div>
+          <div className="space-y-1">
+            <Label>Start Date</Label>
+            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Jumlah Bulan</Label>
+            <Input
+              type="text"
+              inputMode="numeric"
+              placeholder="0"
+              value={monthsText}
+              onChange={e => {
+                const raw = e.target.value;
+                const digits = raw.replace(/[^0-9]/g, '');
+                // remove leading zeros except keep single zero if that's all
+                const normalized = digits.replace(/^0+(?=\d)/, '');
+                setMonthsText(normalized);
+              }}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Tanggal Tempo</Label>
+            <Input value={dueDate ? format(new Date(dueDate), 'dd MMM yyyy') : ''} readOnly />
+          </div>
+          <div className="space-y-1">
+            <Label>Jumlah Harga</Label>
+            <Input value={currency(gross)} readOnly />
+          </div>
+          <div className="space-y-1">
+            <Label>Diskon</Label>
+            <CurrencyInput value={discount} onChange={setDiscount} />
+          </div>
+          <div className="space-y-1 col-span-2">
+            <Label>Total Harga</Label>
+            <Input value={currency(net)} readOnly />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>Batal</Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={createMut.isPending || months <= 0}
+            className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+          >
+            Tambah
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TTVpsEditDialog({ open, onOpenChange, item, onSuccess }: { open: boolean; onOpenChange: (v: boolean) => void; item: (TTVpsDetailItemDTO & { __periode: string }) | null; onSuccess: () => void }) {
+  const qc = useQueryClient();
+  const [startDate, setStartDate] = useState<string>('');
+  const [monthsText, setMonthsText] = useState<string>('');
+  const [harga, setHarga] = useState<number>(0);
+  const [diskon, setDiskon] = useState<number>(0);
+
+  useEffect(() => {
+    if (open && item) {
+      setStartDate(item.start);
+      setMonthsText(String(item.bulan));
+      setHarga(item.harga);
+      setDiskon(item.diskon);
+    }
+    if (!open) {
+      setStartDate(''); setMonthsText(''); setHarga(0); setDiskon(0);
+    }
+  }, [open, item]);
+
+  const months = useMemo(() => {
+    const digits = (monthsText || '').replace(/[^0-9]/g, '');
+    if (!digits) return 0;
+    return parseInt(digits, 10);
+  }, [monthsText]);
+
+  const tempo = useMemo(() => {
+    if (!startDate || !months) return '';
+    const s = new Date(startDate + 'T00:00:00.000Z');
+    const next = new Date(s);
+    const day = next.getUTCDate();
+    next.setUTCMonth(next.getUTCMonth() + months);
+    if (next.getUTCDate() < day) next.setUTCDate(0);
+    const due = new Date(next);
+    due.setUTCDate(due.getUTCDate() - 1);
+    return due.toISOString().slice(0,10);
+  }, [startDate, months]);
+
+  const jumlah = (harga || 0) * (months || 0);
+  const total = Math.max(0, jumlah - (diskon || 0));
+
+  const updateMut = useMutation({
+    mutationFn: () => updateTTItem({ periode: item!.__periode, itemId: item!._id, start: startDate, bulan: months, harga, diskon }),
+    onSuccess: () => { toast.success('Data diupdate'); onSuccess(); },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Gagal update data'),
+  });
+
+  const handleSubmit = () => {
+    if (!item) return;
+    if (!startDate || !months || months <= 0) return toast.error('Lengkapi form (bulan > 0)');
+    if (startDate.slice(0,7) !== item.__periode) return toast.error('Tanggal start harus tetap di periode yang sama');
+    updateMut.mutate();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Data VPS</DialogTitle>
+        </DialogHeader>
+        {item ? (
+          <div className="space-y-3">
+            <div>
+              <Label>Toko</Label>
+              <div className="p-2 border rounded bg-slate-50">{item.toko}</div>
+            </div>
+            <div>
+              <Label>Program</Label>
+              <div className="p-2 border rounded bg-slate-50">{item.program}</div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Start Date</Label>
+                <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+              </div>
+              <div>
+                <Label>Jumlah Bulan</Label>
+                <Input type="text" inputMode="numeric" value={monthsText} onChange={e => setMonthsText(e.target.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, ''))} />
+              </div>
+              <div>
+                <Label>Harga/Bln</Label>
+                <CurrencyInput value={harga} onChange={setHarga} />
+              </div>
+              <div>
+                <Label>Tempo</Label>
+                <Input value={tempo ? format(new Date(tempo), 'dd MMM yyyy') : ''} readOnly />
+              </div>
+              <div>
+                <Label>Jumlah Harga</Label>
+                <Input value={currency(jumlah)} readOnly />
+              </div>
+              <div>
+                <Label>Diskon</Label>
+                <CurrencyInput value={diskon} onChange={setDiskon} />
+              </div>
+              <div className="col-span-2">
+                <Label>Total Harga</Label>
+                <Input value={currency(total)} readOnly />
+              </div>
+            </div>
+          </div>
+        ) : null}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>Batal</Button>
+          <Button onClick={handleSubmit} disabled={updateMut.isPending || !item || months <= 0} className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white">Simpan</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CurrencyInput({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  const [text, setText] = useState<string>(() => formatCurrencyInput(value));
+
+  useEffect(() => {
+    setText(formatCurrencyInput(value));
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const num = parseCurrencyInput(raw);
+    onChange(num);
+    setText(formatCurrencyInput(num));
+  };
+
+  const handleFocus = () => {
+    // Optionally remove 'Rp' on focus; keep formatted display for consistency
+  };
+
+  return (
+    <Input value={text} onChange={handleChange} onFocus={handleFocus} inputMode="numeric" />
+  );
+}
+
+function ConfirmAction({ title, description, actionText, onConfirm, children }: { title: string; description: string; actionText: string; onConfirm: () => void; children: React.ReactElement }) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Batal</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>{actionText}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}

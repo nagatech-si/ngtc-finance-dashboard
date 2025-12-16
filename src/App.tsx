@@ -27,6 +27,7 @@ import NotFound from "./pages/NotFound";
 import PublicDashboard from "./pages/public-dashboard";
 import Budget from "./pages/Budget";
 import BudgetUsage from "./pages/BudgetUsage";
+import VPS from "./pages/VPS";
 
 const queryClient = new QueryClient();
 
@@ -104,6 +105,17 @@ const App = () => (
               <ProtectedRoute>
                 <MainLayout>
                   <Subscriber />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/vps"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <VPS />
                 </MainLayout>
               </ProtectedRoute>
             }

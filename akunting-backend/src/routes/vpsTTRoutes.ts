@@ -1,0 +1,21 @@
+import { Router } from 'express';
+import { authenticate } from '../middleware/authMiddleware';
+import { createSchedule, deleteItem, getAggregateByPeriode, getDetailsByPeriode, updateItemStatus, updateItem } from '../controllers/vpsTTController';
+
+const router = Router();
+
+router.use(authenticate);
+
+// Create schedule entries spanning to fiscal end
+router.post('/schedule', createSchedule);
+
+// Query details and aggregates for a month
+router.get('/details', getDetailsByPeriode);
+router.get('/aggregate', getAggregateByPeriode);
+
+// Update status or delete an item inside a periode doc
+router.patch('/details/:periode/item/:itemId/status', updateItemStatus);
+router.patch('/details/:periode/item/:itemId', updateItem);
+router.delete('/details/:periode/item/:itemId', deleteItem);
+
+export default router;
