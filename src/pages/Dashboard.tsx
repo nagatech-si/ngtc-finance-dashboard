@@ -322,7 +322,7 @@ export default function Dashboard() {
         ) : (
           <>
             {/* VPS Monthly Aggregates */}
-            {vpsMonthlyData && vpsMonthlyData.length > 0 && (
+            {/* {vpsMonthlyData && vpsMonthlyData.length > 0 && (
               <div className="mb-8">
                 <Card className="border-2 border-dashed border-blue-200 bg-white backdrop-blur-sm hover:border-blue-400 transition-all duration-300">
                   <CardHeader className="pb-4">
@@ -372,7 +372,7 @@ export default function Dashboard() {
                   </CardContent>
                 </Card>
               </div>
-            )}
+            )} */}
 
             {/* Monthly trend chart per kategori */}
             {pertahunData.length > 0 && (
