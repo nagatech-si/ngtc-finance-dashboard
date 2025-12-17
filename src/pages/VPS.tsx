@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query';
-import { createSchedule, deleteItem as deleteTTItem, fetchAvailableSubscribers, fetchDetailsByPeriode, updateItemStatus, updateItem as updateTTItem, TTVpsDetailItemDTO, VpsSubscriberOption } from '@/api/ttvps';
+import { createSchedule, deleteItem as deleteTTItem, fetchAvailableSubscribers, fetchDetailsByPeriode, updateItemStatus, updateItem as updateTTItem, TTVpsDetailItemDTO, VpsSubscriberOption, fetchLastPeriod, generateNextFiscal } from '@/api/ttvps';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -77,6 +77,25 @@ export default function VPS() {
     });
   }, [detailQueries, statusFilter, searchTerm]);
 
+  // Next fiscal caption based on last period in backend
+  const { data: lastPeriodData } = useQuery({ queryKey: ['tt-vps-last-period'], queryFn: fetchLastPeriod });
+  const nextFiscalLabel = useMemo(() => {
+    if (!lastPeriodData) return '';
+    const y = parseInt(String(lastPeriodData).slice(0,4), 10);
+    if (!y) return '';
+    return String(y + 1);
+  }, [lastPeriodData]);
+
+  const genMut = useMutation({
+    mutationFn: generateNextFiscal,
+    onSuccess: (res) => {
+      toast.success(`Generate ${res.nextFiscalLabel} berhasil (${res.affected.length} periode)`);
+      qc.invalidateQueries({ queryKey: ['tt-vps-details'] });
+      qc.invalidateQueries({ queryKey: ['vps-tt-aggregates'] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message || 'Gagal generate data'),
+  });
+
   const startCreate = () => { setEditItem(null); setOpen(true); };
   const startEdit = (item: any) => { setEditItem(item); setOpenEdit(true); };
 
@@ -96,12 +115,28 @@ export default function VPS() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">VPS Subscription</h2>
-        <Button
-          onClick={startCreate}
-          className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
-        >
-          Tambah VPS
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={startCreate}
+            className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+          >
+            Tambah VPS
+          </Button>
+          <ConfirmAction
+            title="Generate Data?"
+            description={nextFiscalLabel ? `Anda yakin ingin generate data VPS untuk periode ${nextFiscalLabel}?` : 'Menentukan tahun...'}
+            actionText="Ya, Generate"
+            onConfirm={() => genMut.mutate()}
+          >
+            <Button
+              disabled={genMut.isPending || !nextFiscalLabel}
+              className="bg-gradient-to-r from-purple-600 to-fuchsia-700 hover:from-purple-700 hover:to-fuchsia-800 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
+              title={nextFiscalLabel ? `Generate Data ${nextFiscalLabel}` : 'Menentukan tahun...'}
+            >
+              {nextFiscalLabel ? `Generate Data ${nextFiscalLabel}` : 'Generate Data'}
+            </Button>
+          </ConfirmAction>
+        </div>
       </div>
 
       {/* Filters */}
@@ -155,6 +190,7 @@ export default function VPS() {
                     <th className="py-2 pr-4">Bulan</th>
                     <th className="py-2 pr-4">Tempo</th>
                     <th className="py-2 pr-4">Harga/Bln</th>
+                    <th className="py-2 pr-4">Diskon Rp</th>
                     <th className="py-2 pr-4">Total</th>
                     <th className="py-2 pr-4">Status</th>
                     <th className="py-2 pr-4">Aksi</th>
@@ -168,6 +204,7 @@ export default function VPS() {
                       <td className="py-2 pr-4">{item.bulan}</td>
                       <td className="py-2 pr-4">{format(new Date(item.tempo), 'dd MMM yyyy')}</td>
                       <td className="py-2 pr-4">{currency(item.harga)}</td>
+                      <td className="py-2 pr-4">{currency(item.diskon)}</td>
                       <td className="py-2 pr-4">{currency(item.total_harga)}</td>
                       <td className="py-2 pr-4">
                         {item.status === 'DONE' ? (
@@ -250,14 +287,14 @@ function VpsFormDialog({ open, onOpenChange, editItem, onSuccess }: { open: bool
 
   const [startDate, setStartDate] = useState<string>('');
   const [monthsText, setMonthsText] = useState<string>('');
-  const [discount, setDiscount] = useState<number>(0);
+  const [discountPercentText, setDiscountPercentText] = useState<string>('');
 
   useEffect(() => {
     if (!open) {
       setSubscriberId('');
       setStartDate('');
       setMonthsText('');
-      setDiscount(0);
+      setDiscountPercentText('');
     }
   }, [open]);
 
@@ -287,12 +324,19 @@ function VpsFormDialog({ open, onOpenChange, editItem, onSuccess }: { open: bool
   }, [startDate, months]);
 
   const gross = (pricePerMonth || 0) * (months || 0);
-  const net = Math.max(0, gross - (discount || 0));
+  const discountPercent = (() => {
+    const digits = (discountPercentText || '').replace(/[^0-9]/g, '');
+    if (!digits) return 0;
+    const p = parseInt(digits, 10);
+    return Math.max(0, Math.min(100, p));
+  })();
+  const discountRp = Math.floor(gross * discountPercent / 100);
+  const net = Math.max(0, gross - discountRp);
 
   const handleSubmit = () => {
     if (!startDate || !months || months <= 0) return toast.error('Lengkapi form: jumlah bulan harus diisi (> 0)');
     if (!subscriberId) return toast.error('Pilih toko terlebih dahulu');
-    createMut.mutate({ subscriberId, startDate, months, discount });
+    createMut.mutate({ subscriberId, startDate, months, discount: discountRp });
   };
 
   return (
@@ -350,8 +394,22 @@ function VpsFormDialog({ open, onOpenChange, editItem, onSuccess }: { open: bool
             <Input value={currency(gross)} readOnly />
           </div>
           <div className="space-y-1">
-            <Label>Diskon</Label>
-            <CurrencyInput value={discount} onChange={setDiscount} />
+            <Label>Diskon (%)</Label>
+            <Input
+              type="text"
+              inputMode="numeric"
+              placeholder="0"
+              value={discountPercentText}
+              onChange={e => {
+                const raw = e.target.value;
+                const digits = raw.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
+                setDiscountPercentText(digits);
+              }}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Diskon (Rp)</Label>
+            <Input value={currency(discountRp)} readOnly />
           </div>
           <div className="space-y-1 col-span-2">
             <Label>Total Harga</Label>
@@ -379,17 +437,19 @@ function TTVpsEditDialog({ open, onOpenChange, item, onSuccess }: { open: boolea
   const [startDate, setStartDate] = useState<string>('');
   const [monthsText, setMonthsText] = useState<string>('');
   const [harga, setHarga] = useState<number>(0);
-  const [diskon, setDiskon] = useState<number>(0);
+  const [diskonPercentText, setDiskonPercentText] = useState<string>('');
 
   useEffect(() => {
     if (open && item) {
       setStartDate(item.start);
       setMonthsText(String(item.bulan));
       setHarga(item.harga);
-      setDiskon(item.diskon);
+      const base = item.harga * item.bulan;
+      const pct = base > 0 ? Math.round((item.diskon / base) * 100) : 0;
+      setDiskonPercentText(String(pct));
     }
     if (!open) {
-      setStartDate(''); setMonthsText(''); setHarga(0); setDiskon(0);
+      setStartDate(''); setMonthsText(''); setHarga(0); setDiskonPercentText('');
     }
   }, [open, item]);
 
@@ -412,10 +472,17 @@ function TTVpsEditDialog({ open, onOpenChange, item, onSuccess }: { open: boolea
   }, [startDate, months]);
 
   const jumlah = (harga || 0) * (months || 0);
-  const total = Math.max(0, jumlah - (diskon || 0));
+  const diskonPercent = (() => {
+    const digits = (diskonPercentText || '').replace(/[^0-9]/g, '');
+    if (!digits) return 0;
+    const p = parseInt(digits, 10);
+    return Math.max(0, Math.min(100, p));
+  })();
+  const diskonRp = Math.floor(jumlah * diskonPercent / 100);
+  const total = Math.max(0, jumlah - diskonRp);
 
   const updateMut = useMutation({
-    mutationFn: () => updateTTItem({ periode: item!.__periode, itemId: item!._id, start: startDate, bulan: months, harga, diskon }),
+    mutationFn: () => updateTTItem({ periode: item!.__periode, itemId: item!._id, start: startDate, bulan: months, harga, diskon: diskonRp }),
     onSuccess: () => { toast.success('Data diupdate'); onSuccess(); },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Gagal update data'),
   });
@@ -465,8 +532,12 @@ function TTVpsEditDialog({ open, onOpenChange, item, onSuccess }: { open: boolea
                 <Input value={currency(jumlah)} readOnly />
               </div>
               <div>
-                <Label>Diskon</Label>
-                <CurrencyInput value={diskon} onChange={setDiskon} />
+                <Label>Diskon (%)</Label>
+                <Input type="text" inputMode="numeric" value={diskonPercentText} onChange={e => setDiskonPercentText(e.target.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, ''))} />
+              </div>
+              <div>
+                <Label>Diskon (Rp)</Label>
+                <Input value={currency(diskonRp)} readOnly />
               </div>
               <div className="col-span-2">
                 <Label>Total Harga</Label>

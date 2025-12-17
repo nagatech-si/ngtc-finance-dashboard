@@ -66,3 +66,13 @@ export async function updateItem(params: { periode: string; itemId: string; star
   const { data } = await axiosInstance.patch(`/tt-vps/details/${encodeURIComponent(periode)}/item/${itemId}`, body);
   return data;
 }
+
+export async function fetchLastPeriod(): Promise<string | null> {
+  const { data } = await axiosInstance.get('/tt-vps/last-period');
+  return data?.periode || null;
+}
+
+export async function generateNextFiscal(): Promise<{ message: string; nextFiscalLabel: number; affected: string[] }> {
+  const { data } = await axiosInstance.post('/tt-vps/generate-next-year');
+  return data;
+}

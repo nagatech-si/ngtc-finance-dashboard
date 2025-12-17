@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, LabelList } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { ChartDonut } from '@/components/ChartDonut';
 import { ChartBar } from '@/components/ChartBar';
@@ -49,7 +52,104 @@ export default function Dashboard() {
   const [month, setMonth] = useState<string>('ANNUAL');
   const [chartType, setChartType] = useState<'donut' | 'bar'>('donut');
   const [vpsMetric, setVpsMetric] = useState<'estimasi' | 'realisasi'>('estimasi');
+  const [exporting, setExporting] = useState<boolean>(false);
   const userSelectedYearRef = useRef(false);
+  const vpsCardRef = useRef<HTMLDivElement | null>(null);
+
+  // Helper: load image from URL as data URL with original dimensions
+  const loadImageAsDataURL = (url: string): Promise<{ dataUrl: string; width: number; height: number } | null> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        const dataUrl = canvas.toDataURL('image/png');
+        resolve({ dataUrl, width: img.naturalWidth, height: img.naturalHeight });
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  };
+
+  const handleExportPDF = async () => {
+    if (!vpsCardRef.current) return;
+    try {
+      setExporting(true);
+      const canvas = await html2canvas(vpsCardRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        onclone: (doc) => {
+          doc.querySelectorAll('.no-export-pdf').forEach((el) => {
+            (el as HTMLElement).style.display = 'none';
+          });
+          const card = doc.querySelector('.vps-card') as HTMLElement | null;
+          const total = doc.querySelector('.vps-total-caption') as HTMLElement | null;
+          if (card && total) {
+            // Position the totals at the top-right and enlarge for PDF
+            card.style.position = 'relative';
+            total.style.position = 'absolute';
+            total.style.top = '16px';
+            total.style.right = '24px';
+            total.style.margin = '0';
+            total.style.fontSize = '18px';
+            total.style.fontWeight = '700';
+          }
+        },
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 24; // 24pt (~8.5mm)
+      const contentWidth = pageWidth - margin * 2;
+      const contentHeight = pageHeight - margin * 2;
+      // Reserve space for PDF header (may grow if logo is taller)
+      let headerHeight = 80; // pt
+      const centerX = pageWidth / 2;
+
+      // Try to load and render logo to the left of the centered header (use local asset to avoid CORS)
+      const logoUrl = '/nsi-logo-min.png';
+      const logo = await loadImageAsDataURL(logoUrl);
+      if (logo) {
+        const desiredWidth = 100; // pt (smaller logo)
+        const aspect = logo.height / logo.width;
+        const desiredHeight = Math.round(desiredWidth * aspect);
+        pdf.addImage(logo.dataUrl, 'PNG', margin, margin, desiredWidth, desiredHeight);
+        headerHeight = Math.max(headerHeight, desiredHeight + 20);
+      }
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const scale = Math.min(contentWidth / imgWidth, (contentHeight - headerHeight) / imgHeight);
+      const renderWidth = imgWidth * scale;
+      const renderHeight = imgHeight * scale;
+      const x = margin + (contentWidth - renderWidth) / 2;
+      const topGap = 8; // pt gap below header
+      const y = margin + headerHeight + topGap;
+      // Add header text
+        pdf.setFont('times', 'bold');
+      pdf.setFontSize(18);
+      pdf.text('DATA PEROLEHAN VPS', centerX, margin + 22, { align: 'center' });
+        pdf.setFont('times', 'normal');
+      pdf.setFontSize(14);
+      pdf.text('PT NAGATECH SISTEM INTEGRATOR', centerX, margin + 42, { align: 'center' });
+      pdf.addImage(imgData, 'PNG', x, y, renderWidth, renderHeight);
+      const filename = `Perolehan_VPS_${year}_${vpsMetric}.pdf`;
+      pdf.save(filename);
+    } catch (err) {
+      console.error('Export PDF failed', err);
+    } finally {
+      setExporting(false);
+    }
+  };
   const handleYearChange = (val: string) => {
     userSelectedYearRef.current = true;
     setYear(val);
@@ -106,7 +206,12 @@ export default function Dashboard() {
         { label: 'NOV', period: `${yr}-11` },
       ];
       const results = await Promise.all(months.map(m => fetchAggregatesByPeriode(m.period)));
-      return months.map((m, idx) => ({ label: m.label, agg: results[idx] }));
+      return months.map((m, idx) => {
+        const periodYear = parseInt(m.period.slice(0, 4), 10);
+        const yy = String(periodYear % 100).padStart(2, '0');
+        const labelWithYear = `${m.label}-${yy}`;
+        return { label: labelWithYear, agg: results[idx] };
+      });
     }
   });
 
@@ -328,20 +433,6 @@ export default function Dashboard() {
                   <CardHeader className="pb-4">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-2xl font-bold text-gray-900">Perolehan VPS {year}</CardTitle>
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => setVpsMetric('estimasi')}
-                          className={`px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ${
-                            vpsMetric === 'estimasi' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >Estimasi</button>
-                        <button
-                          onClick={() => setVpsMetric('realisasi')}
-                          className={`px-3 py-1 rounded-md text-sm font-medium transition-all duration-200 ${
-                            vpsMetric === 'realisasi' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >Realisasi</button>
-                      </div>
                     </div>
                     <CardDescription className="text-gray-600 text-sm">
                       Fiscal year starts December; toggle between estimasi and realisasi
@@ -351,12 +442,12 @@ export default function Dashboard() {
                     {(() => {
                       const chartData = vpsMonthlyData.map(({ label, agg }) => ({
                         name: label,
-                        value: agg ? (vpsMetric === 'estimasi' ? agg.estimasi : agg.realisasi) : 0,
+                        value: agg ? (agg.estimasi) : 0,
                       }));
                       const total = chartData.reduce((s, d) => s + d.value, 0);
                       return (
                         <div>
-                          <div className="mb-3">
+                          <div className="mb-3 text-right">
                             <span className="text-sm font-medium text-blue-600">
                               Total: Rp {total.toLocaleString('id-ID')}
                             </span>
@@ -588,6 +679,100 @@ export default function Dashboard() {
                   </CardHeader>
                   <CardContent>
                     <SubscriberByProgramChart data={subscriberByProgramData} />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* VPS Monthly Aggregates (single-series with radio toggle, placed below Subscriber by Program) */}
+            {vpsMonthlyData && vpsMonthlyData.length > 0 && (
+              <div className="mb-8" ref={vpsCardRef}>
+                <Card className="vps-card border-2 border-dashed border-blue-200 bg-white backdrop-blur-sm hover:border-blue-400 transition-all duration-300">
+                  <CardHeader className="vps-card-header pb-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-2xl font-bold text-gray-900">Perolehan VPS {year}</CardTitle>
+                      {/* Actions: radio toggle & export */}
+                      <div className="flex items-center gap-3 no-export-pdf">
+                        {(() => {
+                          return (
+                            <div className="flex items-center gap-2 bg-gray-100/50 rounded-lg p-1">
+                              <button onClick={() => setVpsMetric('estimasi')} className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${ (vpsMetric === 'estimasi') ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-200' }`}>
+                                Estimasi
+                              </button>
+                              <button onClick={() => setVpsMetric('realisasi')} className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${ (vpsMetric === 'realisasi') ? 'bg-green-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-200' }`}>
+                                Realisasi
+                              </button>
+                            </div>
+                          );
+                        })()}
+                        <button
+                          onClick={handleExportPDF}
+                          disabled={exporting}
+                          className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 border border-blue-300 ${exporting ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white text-blue-700 hover:bg-blue-50'}`}
+                          title="Export chart as PDF"
+                        >
+                          Export PDF
+                        </button>
+                      </div>
+                    </div>
+                    <CardDescription className="text-gray-600 text-sm">
+                      Data Estimasi & Realisasi VPS
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      const chartData = vpsMonthlyData.map(({ label, agg }) => ({
+                        name: label,
+                        estimasi: agg?.estimasi || 0,
+                        realisasi: agg?.realisasi || 0,
+                      }));
+
+                      const selectedKey = (typeof vpsMetric !== 'undefined' ? vpsMetric : 'estimasi');
+                      const total = chartData.reduce((sum, item) => sum + (item as any)[selectedKey], 0);
+                      const color = selectedKey === 'estimasi' ? '#3b82f6' : '#10b981';
+                      const maxSelected = Math.max(
+                        0,
+                        ...chartData.map((item) => Number((item as any)[selectedKey]) || 0)
+                      );
+                      const step = 500_000_000; // 500M step as requested
+                      const minMaxTick = 1_500_000_000; // Ensure at least up to 1.5B
+                      const maxTick = Math.max(minMaxTick, Math.ceil(maxSelected / step) * step);
+                      const ticks = Array.from({ length: Math.floor(maxTick / step) + 1 }, (_, i) => i * step);
+
+                      return (
+                        <div>
+                          <div className="vps-total-caption mb-3 text-right">
+                            <span className={`text-sm font-medium ${selectedKey === 'estimasi' ? 'text-blue-600' : 'text-green-600'}`}>
+                              Total {selectedKey === 'estimasi' ? 'Estimasi' : 'Realisasi'}: Rp {total.toLocaleString('id-ID')}
+                            </span>
+                          </div>
+                          <ResponsiveContainer width="100%" height={400}>
+                            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 55, bottom: 20 }}>
+                              <XAxis
+                                dataKey="name"
+                                interval={0}
+                                tick={{ fontSize: 12, fill: '#374151' }}
+                              />
+                              <YAxis
+                                width={70}
+                                tickMargin={6}
+                                ticks={ticks}
+                                domain={[0, maxTick]}
+                                allowDecimals={false}
+                                tickFormatter={(value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value))}
+                                fontSize={12}
+                              />
+                              <Tooltip
+                                formatter={(value: any) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(value))}
+                              />
+                              <Bar dataKey={selectedKey} name={selectedKey === 'estimasi' ? 'Estimasi' : 'Realisasi'} fill={color} radius={[4,4,0,0]} barSize={50}>
+                                <LabelList dataKey={selectedKey} position="top" offset={10} formatter={(value: number) => `Rp ${value.toLocaleString('id-ID')}`} style={{ fontSize: 11, fill: '#374151', fontWeight: 600 }} />
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               </div>

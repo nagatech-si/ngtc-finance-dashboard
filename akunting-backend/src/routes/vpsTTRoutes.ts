@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/authMiddleware';
-import { createSchedule, deleteItem, getAggregateByPeriode, getDetailsByPeriode, updateItemStatus, updateItem } from '../controllers/vpsTTController';
+import { createSchedule, deleteItem, getAggregateByPeriode, getDetailsByPeriode, updateItemStatus, updateItem, getLastPeriod, generateNextFiscal } from '../controllers/vpsTTController';
 
 const router = Router();
 
@@ -12,6 +12,8 @@ router.post('/schedule', createSchedule);
 // Query details and aggregates for a month
 router.get('/details', getDetailsByPeriode);
 router.get('/aggregate', getAggregateByPeriode);
+router.get('/last-period', getLastPeriod);
+router.post('/generate-next-year', generateNextFiscal);
 
 // Update status or delete an item inside a periode doc
 router.patch('/details/:periode/item/:itemId/status', updateItemStatus);

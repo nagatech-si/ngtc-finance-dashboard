@@ -56,7 +56,7 @@ export function ChartBar({ data, totalKategori, ticks }: ChartBarProps) {
       <ResponsiveContainer width="100%" height={400}>
         <BarChart
           data={data}
-          margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+          margin={{ top: 20, right: 30, left: 70, bottom: 20 }}
         >
           <XAxis
             dataKey="name"
@@ -114,6 +114,8 @@ export function ChartBar({ data, totalKategori, ticks }: ChartBarProps) {
             }}
           />
           <YAxis
+            width={80}
+            tickMargin={6}
             ticks={ticks}
             tickFormatter={(value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)}
             fontSize={12}
