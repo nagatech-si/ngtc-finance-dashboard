@@ -9,10 +9,12 @@ type CreateScheduleBody = {
   subscriber_id?: string;
   toko?: string;
   program?: string;
+  daerah?: string;
   harga?: number;
   start: string; // YYYY-MM-DD
   bulan: number; // initial term months
   diskon?: number; // applied to first month
+  diskon_percent?: number; // applied to first term
 };
 
 function sum(arr: number[]): number { return arr.reduce((a, b) => a + b, 0); }
@@ -65,6 +67,7 @@ export const createSchedule = async (req: Request, res: Response) => {
     }
     let toko = body.toko;
     let program = body.program;
+    let daerah = body.daerah;
     let harga = body.harga;
 
     if (body.subscriber_id) {
@@ -72,13 +75,15 @@ export const createSchedule = async (req: Request, res: Response) => {
       if (!sub) return res.status(400).json({ message: 'subscriber not found' });
       toko = sub.toko;
       program = sub.program;
+      daerah = sub.daerah;
       harga = sub.biaya;
     }
 
-    if (!toko || !program || typeof harga !== 'number') {
-      return res.status(400).json({ message: 'toko, program, harga are required (or provide subscriber_id)' });
+    if (!toko || !program || !daerah || typeof harga !== 'number') {
+      return res.status(400).json({ message: 'toko, program, daerah, harga are required (or provide subscriber_id)' });
     }
     const diskonFirst = body.diskon ?? 0;
+    const diskonPercentFirst = typeof body.diskon_percent === 'number' ? Math.max(0, Math.min(100, body.diskon_percent)) : 0;
     const startDate = new Date(body.start + 'T00:00:00.000Z');
     if (isNaN(startDate.getTime())) return res.status(400).json({ message: 'invalid start date' });
 
@@ -108,17 +113,20 @@ export const createSchedule = async (req: Request, res: Response) => {
     for (const e of entries) {
       const periode = toPeriod(e.start);
       affectedPeriodes.add(periode);
+      const jumlah_harga = harga! * e.bulan;
       const item: IVpsDetailItem = {
         chain_id: chainId,
         toko: toko!,
         program: program!,
+        daerah: daerah!,
         start: formatYMD(e.start),
         bulan: e.bulan,
         tempo: formatYMD(e.tempo),
         harga: harga!,
-        jumlah_harga: harga! * e.bulan,
+        jumlah_harga,
         diskon: e.diskon,
-        total_harga: harga! * e.bulan - e.diskon,
+        diskon_percent: e === entries[0] ? (diskonPercentFirst || (jumlah_harga > 0 ? Math.round((diskonFirst / jumlah_harga) * 100) : 0)) : 0,
+        total_harga: jumlah_harga - e.diskon,
         status: 'OPEN',
       };
 
@@ -281,7 +289,7 @@ export const deleteItem = async (req: Request, res: Response) => {
 export const updateItem = async (req: Request, res: Response) => {
   try {
     const { periode, itemId } = req.params as { periode: string; itemId: string };
-    const { start, bulan, harga, diskon, status } = req.body as Partial<{ start: string; bulan: number; harga: number; diskon: number; status: 'OPEN'|'DONE' }>;
+    const { start, bulan, harga, diskon, status, diskon_percent } = req.body as Partial<{ start: string; bulan: number; harga: number; diskon: number; status: 'OPEN'|'DONE'; diskon_percent: number }>;
     const userTag = (req as any).user?.username || (req as any).user?._id || 'system';
     const doc = await TTVpsDetail.findOne({ periode });
     if (!doc) return res.status(404).json({ message: 'periode not found' });
@@ -298,6 +306,7 @@ export const updateItem = async (req: Request, res: Response) => {
     const newBulan = (typeof bulan === 'number' && bulan > 0) ? bulan : item.bulan;
     const newHarga = (typeof harga === 'number' && harga >= 0) ? harga : item.harga;
     const newDiskon = (typeof diskon === 'number' && diskon >= 0) ? diskon : item.diskon;
+    const newDiskonPercent = (typeof diskon_percent === 'number' && diskon_percent >= 0) ? Math.min(100, diskon_percent) : item.diskon_percent || 0;
     const newStatus = status && (status === 'OPEN' || status === 'DONE') ? status : item.status;
 
     // Pastikan chain_id ada
@@ -319,16 +328,15 @@ export const updateItem = async (req: Request, res: Response) => {
     const entries: { start: Date; bulan: number; tempo: Date; diskon: number }[] = [];
     // Entry pertama: sesuai input bulan baru
     entries.push({ start: startDateObj, bulan: newBulan, tempo: firstTempo, diskon: newDiskon });
-    // Entry sisa: gabungkan menjadi SATU entry sampai akhir fiskal (Nov) jika masih ada sisa bulan
-    const cursorStart = addDays(firstTempo, 1);
-    if (cursorStart <= fiscalEndDate) {
-      const startIdx = cursorStart.getUTCFullYear() * 12 + cursorStart.getUTCMonth();
-      const endIdx = fiscalEndDate.getUTCFullYear() * 12 + 10; // November (10)
-      const remMonths = endIdx - startIdx + 1;
-      if (remMonths > 0) {
-        const tempo = calcTempo(cursorStart, remMonths);
-        entries.push({ start: cursorStart, bulan: remMonths, tempo, diskon: 0 });
-      }
+    // Entry sisa: selalu gunakan ukuran newBulan sampai START terakhir jatuh di <= akhir fiskal (Nov).
+    // Jika tempo melewati akhir fiskal (mis. jadi Desember), itu diperbolehkan, dan tidak membuat START baru di periode berikutnya.
+    let cursorStart = addDays(firstTempo, 1);
+    while (cursorStart <= fiscalEndDate) {
+      const tempo = calcTempo(cursorStart, newBulan);
+      entries.push({ start: cursorStart, bulan: newBulan, tempo, diskon: 0 });
+      const nextStart = addDays(tempo, 1);
+      if (nextStart > fiscalEndDate) break; // stop, jangan membuat start di periode fiskal berikutnya
+      cursorStart = nextStart;
     }
 
     // Hapus item lama chain_id pada SEMUA periode dari periode edit sampai akhir fiskal
@@ -350,17 +358,21 @@ export const updateItem = async (req: Request, res: Response) => {
     for (const e of entries) {
       const p = toPeriod(e.start);
       const now = new Date();
+      const jumlah = newHarga * e.bulan;
+      const first = e.start.getTime() === startDateObj.getTime();
       const newItem: IVpsDetailItem = {
         chain_id: chainId,
         toko: item.toko,
         program: item.program,
+        daerah: (item as any).daerah,
         start: formatYMD(e.start),
         bulan: e.bulan,
         tempo: formatYMD(e.tempo),
         harga: newHarga,
-        jumlah_harga: newHarga * e.bulan,
+        jumlah_harga: jumlah,
         diskon: e.diskon,
-        total_harga: newHarga * e.bulan - e.diskon,
+        diskon_percent: first ? (typeof diskon_percent === 'number' ? Math.max(0, Math.min(100, diskon_percent)) : (jumlah > 0 ? Math.round((newDiskon / jumlah) * 100) : 0)) : 0,
+        total_harga: jumlah - e.diskon,
         status: newStatus,
         ref_id: item.ref_id,
       };
@@ -438,9 +450,10 @@ export const generateNextFiscal = async (req: Request, res: Response) => {
     for (const [toko, info] of Object.entries(tokoLatest)) {
       const last = info.last;
       const program = last.program;
+      const daerah = (last as any).daerah || '';
       const harga = last.harga;
-      // infer initial term months: prefer the largest 'bulan' in chain (likely first term), else fallback to last.bulan
-      const initialMonths = Math.max(last.bulan, ...(info.chainItems.map(ci => ci.bulan)));
+      // infer next fiscal segment size from the latest data in last period
+      const initialMonths = last.bulan;
       const startDate = addDays(new Date(last.tempo + 'T00:00:00.000Z'), 1);
 
       // Build schedule: first term then monthly until fiscal end (Nov)
@@ -449,12 +462,16 @@ export const generateNextFiscal = async (req: Request, res: Response) => {
       const fiscalEndDate = new Date(Date.UTC(endYear, 11, 0)); // last day of Nov
 
       const entries: { start: Date; bulan: number; tempo: Date; diskon: number }[] = [];
+      // Term awal: gunakan initialMonths
       entries.push({ start: startDate, bulan: initialMonths, tempo: firstTempo, diskon: 0 });
+      // Sisa: gunakan segmen ukuran initialMonths, hentikan bila start berikutnya melewati akhir fiskal
       let cursorStart = addDays(firstTempo, 1);
       while (cursorStart <= fiscalEndDate) {
-        const tempo = calcTempo(cursorStart, 1);
-        entries.push({ start: cursorStart, bulan: 1, tempo, diskon: 0 });
-        cursorStart = addDays(tempo, 1);
+        const tempo = calcTempo(cursorStart, initialMonths);
+        entries.push({ start: cursorStart, bulan: initialMonths, tempo, diskon: 0 });
+        const nextStart = addDays(tempo, 1);
+        if (nextStart > fiscalEndDate) break;
+        cursorStart = nextStart;
       }
 
       // Persist entries with a new chain_id
@@ -466,12 +483,14 @@ export const generateNextFiscal = async (req: Request, res: Response) => {
           chain_id: chainId,
           toko,
           program,
+          daerah,
           start: formatYMD(e.start),
           bulan: e.bulan,
           tempo: formatYMD(e.tempo),
           harga,
           jumlah_harga: harga * e.bulan,
           diskon: 0,
+          diskon_percent: 0,
           total_harga: harga * e.bulan,
           status: 'OPEN',
         };

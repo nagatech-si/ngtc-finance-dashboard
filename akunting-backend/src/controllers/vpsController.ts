@@ -33,7 +33,9 @@ export const availableSubscribers = async (_req: Request, res: Response) => {
   try {
     // Subscribers not yet linked to any VPS subscription
     const used = await VpsSubscription.distinct('subscriber');
-    const subs = await Subscriber.find({ _id: { $nin: used }, status_aktv: true })
+    // Also exclude shops already present in TT VPS detail schedule
+    const usedTTToko = await TTVpsDetail.distinct('detail.toko');
+    const subs = await Subscriber.find({ _id: { $nin: used }, toko: { $nin: usedTTToko }, status_aktv: true })
       .select('toko biaya kode program daerah')
       .sort({ toko: 1 })
       .lean();
@@ -216,13 +218,14 @@ async function createTTDocumentsForNewVps(params: {
   refId?: string;
   toko: string;
   program: string;
+  daerah?: string;
   pricePerMonth: number;
   startDate: Date;
   months: number;
   discountFirst: number;
   user?: any;
 }) {
-  const { refId, toko, program, pricePerMonth, startDate, months, discountFirst, user } = params;
+  const { refId, toko, program, daerah, pricePerMonth, startDate, months, discountFirst, user } = params;
   const firstTempo = calcTempoUTC(startDate, months);
   // Determine fiscal end (November) relative to start
   const endYear = startDate.getUTCMonth() === 11 ? startDate.getUTCFullYear() + 1 : startDate.getUTCFullYear();
@@ -243,17 +246,20 @@ async function createTTDocumentsForNewVps(params: {
   for (const e of entries) {
     const periode = toPeriod(e.start);
     affected.add(periode);
+    const base = pricePerMonth * e.bulan;
     const item: IVpsDetailItem = {
       ref_id: refId,
       toko,
       program,
+      daerah: daerah || '',
       start: formatYMD(e.start),
       bulan: e.bulan,
       tempo: formatYMD(e.tempo),
       harga: pricePerMonth,
-      jumlah_harga: pricePerMonth * e.bulan,
+      jumlah_harga: base,
       diskon: e.diskon,
-      total_harga: pricePerMonth * e.bulan - e.diskon,
+      diskon_percent: e === entries[0] ? (base > 0 ? Math.round((e.diskon / base) * 100) : 0) : 0,
+      total_harga: base - e.diskon,
       status: 'OPEN',
     };
     const now = new Date();

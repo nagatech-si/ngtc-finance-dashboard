@@ -72,10 +72,15 @@ export default function VPS() {
     const containsText = (s: string, q: string) => s?.toLowerCase().includes(q.toLowerCase());
     return items.filter((it) => {
       const matchStatus = statusFilter === 'ALL' ? true : it.status === statusFilter;
-      const matchSearch = !searchTerm || containsText(it.toko, searchTerm) || containsText(it.program, searchTerm);
+      const matchSearch = !searchTerm || containsText(it.toko, searchTerm) || containsText(it.program, searchTerm) || containsText((it as any).daerah, searchTerm);
       return matchStatus && matchSearch;
     });
   }, [detailQueries, statusFilter, searchTerm]);
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const toggleExpand = (id: string, periode: string) => {
+    setExpanded((prev) => ({ ...prev, [`${periode}-${id}`]: !prev[`${periode}-${id}`] }));
+  };
 
   // Next fiscal caption based on last period in backend
   const { data: lastPeriodData } = useQuery({ queryKey: ['tt-vps-last-period'], queryFn: fetchLastPeriod });
@@ -164,7 +169,7 @@ export default function VPS() {
           <div className="md:col-span-2">
             <Label>Search Data</Label>
             <Input
-              placeholder="Cari berdasarkan toko/program..."
+              placeholder="Cari berdasarkan toko/program/daerah..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="border-2 border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all duration-200"
@@ -185,12 +190,12 @@ export default function VPS() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="text-left border-b">
+                    <th className="py-2 pr-4"></th>
                     <th className="py-2 pr-4">Toko</th>
                     <th className="py-2 pr-4">Start Date</th>
                     <th className="py-2 pr-4">Bulan</th>
                     <th className="py-2 pr-4">Tempo</th>
                     <th className="py-2 pr-4">Harga/Bln</th>
-                    <th className="py-2 pr-4">Diskon Rp</th>
                     <th className="py-2 pr-4">Total</th>
                     <th className="py-2 pr-4">Status</th>
                     <th className="py-2 pr-4">Aksi</th>
@@ -198,13 +203,18 @@ export default function VPS() {
                 </thead>
                 <tbody>
                   {combinedItems?.map((item: any) => (
+                    <>
                     <tr key={`${item.__periode}-${item._id}`} className="border-b">
+                      <td className="py-2 pr-4">
+                        <Button variant="ghost" size="sm" onClick={() => toggleExpand(item._id, item.__periode)} aria-label="Expand">
+                          {expanded[`${item.__periode}-${item._id}`] ? '▾' : '▸'}
+                        </Button>
+                      </td>
                       <td className="py-2 pr-4">{item.toko}</td>
                       <td className="py-2 pr-4">{format(new Date(item.start), 'dd MMM yyyy')}</td>
                       <td className="py-2 pr-4">{item.bulan}</td>
                       <td className="py-2 pr-4">{format(new Date(item.tempo), 'dd MMM yyyy')}</td>
                       <td className="py-2 pr-4">{currency(item.harga)}</td>
-                      <td className="py-2 pr-4">{currency(item.diskon)}</td>
                       <td className="py-2 pr-4">{currency(item.total_harga)}</td>
                       <td className="py-2 pr-4">
                         {item.status === 'DONE' ? (
@@ -243,6 +253,31 @@ export default function VPS() {
                         </ConfirmAction>
                       </td>
                     </tr>
+                    {expanded[`${item.__periode}-${item._id}`] && (
+                      <tr className="bg-slate-50">
+                        <td colSpan={9} className="py-2 px-4">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            <div>
+                              <div className="text-xs text-slate-500">Program</div>
+                              <div className="text-sm font-medium">{item.program}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-500">Daerah</div>
+                              <div className="text-sm font-medium">{item.daerah}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-500">Diskon (%)</div>
+                              <div className="text-sm font-medium">{item.diskon_percent || 0}%</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-500">Diskon (Rp)</div>
+                              <div className="text-sm font-medium">{currency(item.diskon)}</div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </>
                   ))}
                   {!combinedItems?.length && (
                     <tr><td className="py-4 text-slate-500" colSpan={10}>Belum ada data</td></tr>
@@ -274,8 +309,8 @@ function VpsFormDialog({ open, onOpenChange, editItem, onSuccess }: { open: bool
   const { data: subs } = useQuery({ queryKey: ['vps-available-subs'], queryFn: fetchAvailableSubscribers, enabled: !editItem });
   const qc = useQueryClient();
   const createMut = useMutation({
-    mutationFn: (payload: { subscriberId?: string; startDate: string; months: number; discount?: number }) =>
-      createSchedule({ subscriber_id: payload.subscriberId, start: payload.startDate, bulan: payload.months, diskon: payload.discount }),
+    mutationFn: (payload: { subscriberId?: string; startDate: string; months: number; discount?: number; discountPercent?: number }) =>
+      createSchedule({ subscriber_id: payload.subscriberId, start: payload.startDate, bulan: payload.months, diskon: payload.discount, diskon_percent: payload.discountPercent }),
     onSuccess: () => { toast.success('Data disimpan'); onSuccess(); qc.invalidateQueries({ queryKey: ['vps-available-subs'] }); qc.invalidateQueries({ queryKey: ['tt-vps-details'] }); },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Gagal simpan data'),
   });
@@ -336,7 +371,7 @@ function VpsFormDialog({ open, onOpenChange, editItem, onSuccess }: { open: bool
   const handleSubmit = () => {
     if (!startDate || !months || months <= 0) return toast.error('Lengkapi form: jumlah bulan harus diisi (> 0)');
     if (!subscriberId) return toast.error('Pilih toko terlebih dahulu');
-    createMut.mutate({ subscriberId, startDate, months, discount: discountRp });
+    createMut.mutate({ subscriberId, startDate, months, discount: discountRp, discountPercent });
   };
 
   return (
@@ -357,6 +392,13 @@ function VpsFormDialog({ open, onOpenChange, editItem, onSuccess }: { open: bool
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        ) : null}
+
+        {selectedSub ? (
+          <div className="space-y-2">
+            <Label>Program</Label>
+            <Input value={selectedSub.program} readOnly />
           </div>
         ) : null}
 
@@ -482,7 +524,7 @@ function TTVpsEditDialog({ open, onOpenChange, item, onSuccess }: { open: boolea
   const total = Math.max(0, jumlah - diskonRp);
 
   const updateMut = useMutation({
-    mutationFn: () => updateTTItem({ periode: item!.__periode, itemId: item!._id, start: startDate, bulan: months, harga, diskon: diskonRp }),
+    mutationFn: () => updateTTItem({ periode: item!.__periode, itemId: item!._id, start: startDate, bulan: months, harga, diskon: diskonRp, diskon_percent: diskonPercent }),
     onSuccess: () => { toast.success('Data diupdate'); onSuccess(); },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Gagal update data'),
   });

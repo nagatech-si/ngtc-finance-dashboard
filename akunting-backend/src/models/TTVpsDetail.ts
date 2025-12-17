@@ -8,12 +8,14 @@ export interface IVpsDetailItem {
   ref_id?: string; // link to VpsSubscription _id for sync
   toko: string;
   program: string;
+  daerah: string;
   start: string; // YYYY-MM-DD
   bulan: number;
   tempo: string; // YYYY-MM-DD
   harga: number;
   jumlah_harga: number;
   diskon: number;
+  diskon_percent: number;
   total_harga: number;
   status: VpsStatus;
 }
@@ -35,12 +37,14 @@ const VpsDetailItemSchema = new Schema<IVpsDetailItem>({
   ref_id: { type: String, required: false },
   toko: { type: String, required: true },
   program: { type: String, required: true },
+  daerah: { type: String, required: true },
   start: { type: String, required: true },
   bulan: { type: Number, required: true, min: 1 },
   tempo: { type: String, required: true },
   harga: { type: Number, required: true, min: 0 },
   jumlah_harga: { type: Number, required: true, min: 0 },
   diskon: { type: Number, required: true, min: 0, default: 0 },
+  diskon_percent: { type: Number, required: true, min: 0, default: 0 },
   total_harga: { type: Number, required: true, min: 0 },
   status: { type: String, enum: ['OPEN', 'DONE'], default: 'OPEN' },
 });

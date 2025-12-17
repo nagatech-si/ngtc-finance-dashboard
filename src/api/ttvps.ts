@@ -7,12 +7,14 @@ export interface TTVpsDetailItemDTO {
   ref_id?: string;
   toko: string;
   program: string;
+  daerah: string;
   start: string; // YYYY-MM-DD
   bulan: number;
   tempo: string; // YYYY-MM-DD
   harga: number;
   jumlah_harga: number;
   diskon: number;
+  diskon_percent: number;
   total_harga: number;
   status: TTVpsStatus;
 }
@@ -33,7 +35,7 @@ export async function fetchAggregatesByPeriode(periode: string) {
   return data as { _id: string; periode: string; estimasi: number; realisasi: number; open: number; total_toko: number } | null;
 }
 
-export async function createSchedule(payload: { subscriber_id?: string; toko?: string; program?: string; harga?: number; start: string; bulan: number; diskon?: number; }) {
+export async function createSchedule(payload: { subscriber_id?: string; toko?: string; program?: string; harga?: number; start: string; bulan: number; diskon?: number; diskon_percent?: number; daerah?: string; }) {
   const { data } = await axiosInstance.post('/tt-vps/schedule', payload);
   return data;
 }
@@ -54,6 +56,8 @@ export interface VpsSubscriberOption {
   _id: string;
   toko: string;
   biaya: number;
+  program: string;
+  daerah: string;
 }
 
 export async function fetchAvailableSubscribers(): Promise<VpsSubscriberOption[]> {
@@ -61,7 +65,7 @@ export async function fetchAvailableSubscribers(): Promise<VpsSubscriberOption[]
   return data?.data || [];
 }
 
-export async function updateItem(params: { periode: string; itemId: string; start?: string; bulan?: number; harga?: number; diskon?: number; status?: TTVpsStatus }) {
+export async function updateItem(params: { periode: string; itemId: string; start?: string; bulan?: number; harga?: number; diskon?: number; diskon_percent?: number; status?: TTVpsStatus }) {
   const { periode, itemId, ...body } = params;
   const { data } = await axiosInstance.patch(`/tt-vps/details/${encodeURIComponent(periode)}/item/${itemId}`, body);
   return data;

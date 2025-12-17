@@ -92,16 +92,30 @@ export default function Dashboard() {
             (el as HTMLElement).style.display = 'none';
           });
           const card = doc.querySelector('.vps-card') as HTMLElement | null;
-          const total = doc.querySelector('.vps-total-caption') as HTMLElement | null;
-          if (card && total) {
-            // Position the totals at the top-right and enlarge for PDF
+          const totalWrap = doc.querySelector('.vps-total-caption') as HTMLElement | null;
+          const totalVal = doc.querySelector('.vps-total-value') as HTMLElement | null;
+          const avgVal = doc.querySelector('.vps-average-value') as HTMLElement | null;
+          if (card && totalWrap) {
+            // Position the totals/average at the top-right and style for PDF
             card.style.position = 'relative';
-            total.style.position = 'absolute';
-            total.style.top = '16px';
-            total.style.right = '24px';
-            total.style.margin = '0';
-            total.style.fontSize = '18px';
-            total.style.fontWeight = '700';
+            totalWrap.style.position = 'absolute';
+            totalWrap.style.top = '16px';
+            totalWrap.style.right = '24px';
+            totalWrap.style.margin = '0';
+            totalWrap.style.textAlign = 'right';
+            if (totalVal) {
+              totalVal.style.display = 'block';
+              totalVal.style.fontSize = '18px';
+              totalVal.style.fontWeight = '700';
+              totalVal.style.margin = '0';
+            }
+            if (avgVal) {
+              avgVal.style.display = 'block';
+              avgVal.style.fontSize = '16px';
+              avgVal.style.fontWeight = '600';
+              avgVal.style.marginTop = '4px';
+              avgVal.style.marginBottom = '0';
+            }
           }
         },
       });
@@ -729,6 +743,7 @@ export default function Dashboard() {
 
                       const selectedKey = (typeof vpsMetric !== 'undefined' ? vpsMetric : 'estimasi');
                       const total = chartData.reduce((sum, item) => sum + (item as any)[selectedKey], 0);
+                      const average = Math.round(total / 12);
                       const color = selectedKey === 'estimasi' ? '#3b82f6' : '#10b981';
                       const maxSelected = Math.max(
                         0,
@@ -742,9 +757,12 @@ export default function Dashboard() {
                       return (
                         <div>
                           <div className="vps-total-caption mb-3 text-right">
-                            <span className={`text-sm font-medium ${selectedKey === 'estimasi' ? 'text-blue-600' : 'text-green-600'}`}>
+                            <div className={`vps-total-value text-sm font-medium ${selectedKey === 'estimasi' ? 'text-blue-600' : 'text-green-600'}`}>
                               Total {selectedKey === 'estimasi' ? 'Estimasi' : 'Realisasi'}: Rp {total.toLocaleString('id-ID')}
-                            </span>
+                            </div>
+                            <div className="vps-average-value text-xs font-medium text-gray-700">
+                              Rata-Rata: Rp {average.toLocaleString('id-ID')}
+                            </div>
                           </div>
                           <ResponsiveContainer width="100%" height={400}>
                             <BarChart data={chartData} margin={{ top: 20, right: 30, left: 55, bottom: 20 }}>
