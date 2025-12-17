@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import axiosInstance from '@/api/axiosInstance';
@@ -98,6 +98,8 @@ export default function Subscriber() {
   const [programSearch, setProgramSearch] = useState('');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterMonth, setFilterMonth] = useState<string>('ALL');
+  const [filterYear, setFilterYear] = useState<string>('ALL');
 
   // Fetch programs for dropdown
   const { data: programs = [] } = useQuery({
@@ -122,6 +124,34 @@ export default function Subscriber() {
       return response.data || [];
     },
   });
+
+  // Distinct years from data (for Tahun filter)
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    (data || []).forEach((item: any) => {
+      if (item?.tanggal) {
+        const d = new Date(item.tanggal);
+        if (!isNaN(d.getTime())) years.add(String(d.getFullYear()));
+      }
+    });
+    return Array.from(years).sort((a, b) => Number(b) - Number(a));
+  }, [data]);
+
+  const MONTH_OPTIONS: { value: string; label: string }[] = [
+    { value: 'ALL', label: 'All' },
+    { value: '1', label: 'Januari' },
+    { value: '2', label: 'Februari' },
+    { value: '3', label: 'Maret' },
+    { value: '4', label: 'April' },
+    { value: '5', label: 'Mei' },
+    { value: '6', label: 'Juni' },
+    { value: '7', label: 'Juli' },
+    { value: '8', label: 'Agustus' },
+    { value: '9', label: 'September' },
+    { value: '10', label: 'Oktober' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'Desember' },
+  ];
 
   // Create/Update mutation
   const saveMutation = useMutation({
@@ -290,10 +320,22 @@ export default function Subscriber() {
     setExpandedRows(newExpandedRows);
   };
 
-  // Filter subscribers based on search term
+  // Filter subscribers based on month/year and search term
   const filteredSubscribers = data.filter((subscriber) => {
-    if (!searchTerm) return true;
+    // Month/Year filter based on `tanggal`
+    let passMonthYear = true;
+    if (filterMonth !== 'ALL' || filterYear !== 'ALL') {
+      const d = subscriber?.tanggal ? new Date(subscriber.tanggal) : null;
+      if (!d || isNaN(d.getTime())) return false;
+      const y = String(d.getFullYear());
+      const m = String(d.getMonth() + 1); // 1..12
+      const monthOk = filterMonth === 'ALL' ? true : m === filterMonth;
+      const yearOk = filterYear === 'ALL' ? true : y === filterYear;
+      passMonthYear = monthOk && yearOk;
+    }
+    if (!passMonthYear) return false;
 
+    if (!searchTerm) return true;
     const searchLower = searchTerm.toLowerCase();
     return (
       subscriber.toko?.toLowerCase().includes(searchLower) ||
@@ -309,6 +351,11 @@ export default function Subscriber() {
       subscriber.via?.toLowerCase().includes(searchLower)
     );
   });
+
+  // Total biaya dari semua data subscriber (bukan hasil filter)
+  const totalBiayaAll = (data || []).reduce((sum: number, s: any) => sum + (Number(s?.biaya) || 0), 0);
+  // Total biaya sesuai filter aktif
+  const totalBiayaFiltered = (filteredSubscribers || []).reduce((sum: number, s: any) => sum + (Number(s?.biaya) || 0), 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 relative overflow-hidden">
@@ -362,7 +409,36 @@ export default function Subscriber() {
 
         {/* Search Bar */}
         <div className="bg-white/50 rounded-lg p-6 border-2 border-dashed border-blue-200">
-          <div className="flex items-center space-x-4">
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col">
+                <Label className="mb-1 text-sm text-gray-700">Bulan</Label>
+                <Select value={filterMonth} onValueChange={setFilterMonth}>
+                  <SelectTrigger className="w-44 border-2 border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
+                    <SelectValue placeholder="Bulan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTH_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col">
+                <Label className="mb-1 text-sm text-gray-700">Tahun</Label>
+                <Select value={filterYear} onValueChange={setFilterYear}>
+                  <SelectTrigger className="w-36 border-2 border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100">
+                    <SelectValue placeholder="Tahun" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All</SelectItem>
+                    {availableYears.map((y) => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <Input
@@ -382,8 +458,13 @@ export default function Subscriber() {
                 </Button>
               )}
             </div>
-            <div className="text-sm text-gray-600">
-              {filteredSubscribers.length} dari {data.length} subscriber
+            <div className="flex flex-col self-center leading-tight mt-4">
+              <div className="text-sm font-semibold text-gray-700">
+                Total Biaya: {formatCurrency(totalBiayaFiltered)}
+              </div>
+              <div className="text-sm text-gray-600">
+                {filteredSubscribers.length} dari {data.length} subscriber
+              </div>
             </div>
           </div>
         </div>
