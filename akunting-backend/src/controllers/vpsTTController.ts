@@ -20,12 +20,22 @@ type CreateScheduleBody = {
 function sum(arr: number[]): number { return arr.reduce((a, b) => a + b, 0); }
 
 async function recalcAggregateForPeriode(periode: string, user: any) {
-  const doc = await TTVpsDetail.findOne({ periode });
-  const details = doc?.detail ?? [];
-  const estimasi = sum(details.map(d => d.total_harga));
-  const realisasi = sum(details.filter(d => d.status === 'DONE').map(d => d.total_harga));
+  // Ambil semua detail dari seluruh periode
+  const allDetailsDocs = await TTVpsDetail.find({});
+  let estimasi = 0;
+  let total_toko_estimasi = 0;
+  // Estimasi dan total_toko_estimasi dari periode ini saja
+  const doc = allDetailsDocs.find(d => d.periode === periode);
+  if (doc) {
+    estimasi = sum(doc.detail.map(d => d.total_harga));
+    total_toko_estimasi = doc.detail.length;
+  }
+  // realisasi dan total_toko_realisasi: semua detail status DONE dan tgl_lunas di periode target
+  const allDetails = allDetailsDocs.flatMap(d => d.detail);
+  const realisasiDetails = allDetails.filter(d => d.status === 'DONE' && d.tgl_lunas && d.tgl_lunas.slice(0,7) === periode);
+  const realisasi = sum(realisasiDetails.map(d => d.total_harga));
+  const total_toko_realisasi = realisasiDetails.length;
   const open = estimasi - realisasi;
-  const total_toko = details.length;
   await TTVps.updateOne(
     { periode },
     {
@@ -34,7 +44,8 @@ async function recalcAggregateForPeriode(periode: string, user: any) {
         estimasi,
         realisasi,
         open,
-        total_toko,
+        total_toko_estimasi,
+        total_toko_realisasi,
         updated_at: new Date(),
         update_date: new Date(),
         update_by: user?.username || user?._id || 'system',
@@ -89,7 +100,7 @@ export const createSchedule = async (req: Request, res: Response) => {
 
     const userTag = (req as any).user?.username || (req as any).user?._id || 'system';
 
-    // Build schedule: first term uses "bulan" months, next terms are monthly until fiscal end (November)
+    // Build schedule: setiap entry menggunakan "bulan" months (bukan 1 bulan)
     const firstTempo = calcTempo(startDate, body.bulan);
     const fiscalEndMonth = getFiscalEndMonth(startDate); // Nov 1st of fiscal end year
     const fiscalEndDate = lastDayOfMonth(new Date(Date.UTC(fiscalEndMonth.getUTCFullYear(), fiscalEndMonth.getUTCMonth(), 1)));
@@ -99,12 +110,14 @@ export const createSchedule = async (req: Request, res: Response) => {
     // First term
     entries.push({ start: startDate, bulan: body.bulan, tempo: firstTempo, diskon: diskonFirst });
 
-    // Continue monthly until fiscal end
+    // Continue per X bulan sampai fiscal end
     let cursorStart = addDays(firstTempo, 1);
     while (cursorStart <= fiscalEndDate) {
-      const tempo = calcTempo(cursorStart, 1);
-      entries.push({ start: cursorStart, bulan: 1, tempo, diskon: 0 });
-      cursorStart = addDays(tempo, 1);
+      const tempo = calcTempo(cursorStart, body.bulan);
+      entries.push({ start: cursorStart, bulan: body.bulan, tempo, diskon: 0 });
+      const nextStart = addDays(tempo, 1);
+      if (nextStart > fiscalEndDate) break;
+      cursorStart = nextStart;
     }
 
     // Persist entries grouped by periode (YYYY-MM of start date)
@@ -177,13 +190,18 @@ export const getAggregateByPeriode = async (req: Request, res: Response) => {
     // Try to read existing aggregate doc
     const existing = await TTVps.findOne({ periode });
 
-    // Always read details to verify correctness or compute fallback
-    const detailsDoc = await TTVpsDetail.findOne({ periode });
+    // Always read all details to verify correctness or compute fallback
+    const allDetailsDocs = await TTVpsDetail.find({});
+    const detailsDoc = allDetailsDocs.find(d => d.periode === periode);
     const hasDetails = !!(detailsDoc && detailsDoc.detail && detailsDoc.detail.length > 0);
     const computedEstimasi = hasDetails ? sum(detailsDoc!.detail.map((d: any) => d.total_harga || 0)) : 0;
-    const computedRealisasi = hasDetails ? sum(detailsDoc!.detail.filter((d: any) => d.status === 'DONE').map((d: any) => d.total_harga || 0)) : 0;
+    // realisasi dan total_toko_realisasi: semua detail status DONE dan tgl_lunas di periode target
+    const allDetails = allDetailsDocs.flatMap(d => d.detail);
+    const realisasiDetails = allDetails.filter(d => d.status === 'DONE' && d.tgl_lunas && d.tgl_lunas.slice(0,7) === periode);
+    const computedRealisasi = sum(realisasiDetails.map(d => d.total_harga));
+    const computedTotalTokoEstimasi = hasDetails ? detailsDoc!.detail.length : 0;
+    const computedTotalTokoRealisasi = realisasiDetails.length;
     const computedOpen = computedEstimasi - computedRealisasi;
-    const computedTotalToko = hasDetails ? detailsDoc!.detail.length : 0;
 
     // If aggregate exists and matches non-zero computed values, return it
     if (existing) {
@@ -191,7 +209,7 @@ export const getAggregateByPeriode = async (req: Request, res: Response) => {
         existing.estimasi !== computedEstimasi ||
         existing.realisasi !== computedRealisasi ||
         existing.open !== computedOpen ||
-        existing.total_toko !== computedTotalToko
+        existing.total_toko_estimasi !== computedTotalTokoEstimasi
       );
       if (needsUpdate && hasDetails) {
         // Update aggregate to reflect current details
@@ -202,7 +220,7 @@ export const getAggregateByPeriode = async (req: Request, res: Response) => {
               estimasi: computedEstimasi,
               realisasi: computedRealisasi,
               open: computedOpen,
-              total_toko: computedTotalToko,
+              total_toko_estimasi: computedTotalTokoEstimasi,
               update_date: new Date(),
               update_by: (req as any).user?.username || (req as any).user?._id || 'system',
             },
@@ -229,7 +247,7 @@ export const getAggregateByPeriode = async (req: Request, res: Response) => {
         estimasi: computedEstimasi,
         realisasi: computedRealisasi,
         open: computedOpen,
-        total_toko: computedTotalToko,
+        total_toko_estimasi: computedTotalTokoEstimasi,
       });
     }
 
@@ -244,7 +262,7 @@ export const getAggregateByPeriode = async (req: Request, res: Response) => {
 export const updateItemStatus = async (req: Request, res: Response) => {
   try {
     const { periode, itemId } = req.params as { periode: string; itemId: string };
-    const { status } = req.body as { status: 'OPEN' | 'DONE' };
+    const { status, tanggalLunas } = req.body as { status: 'OPEN' | 'DONE', tanggalLunas?: string };
     if (!['OPEN', 'DONE'].includes(status)) return res.status(400).json({ message: 'invalid status' });
     const userTag = (req as any).user?.username || (req as any).user?._id || 'system';
 
@@ -253,11 +271,25 @@ export const updateItemStatus = async (req: Request, res: Response) => {
     const item = doc.detail.find((d: any) => String(d._id) === String(itemId));
     if (!item) return res.status(404).json({ message: 'item not found' });
     item.status = status;
+    // Only store tgl_lunas in detail item if marking as DONE and tanggalLunas provided
+    if (status === 'DONE' && tanggalLunas) {
+      item.tgl_lunas = tanggalLunas;
+    } else if (status === 'OPEN') {
+      // Remove tgl_lunas if reverting to OPEN
+      if (item.tgl_lunas) delete item.tgl_lunas;
+    }
     doc.update_date = new Date();
     (doc as any).update_by = userTag;
     await doc.save();
 
-    await recalcAggregateForPeriode(periode, (req as any).user);
+    // Only update aggregate for periode tanggalLunas if marking as DONE and tanggalLunas provided
+    if (status === 'DONE' && tanggalLunas) {
+      const lunasPeriode = tanggalLunas.slice(0, 7); // yyyy-mm
+      await recalcAggregateForPeriode(lunasPeriode, (req as any).user);
+    } else {
+      // Otherwise, update aggregate for current periode
+      await recalcAggregateForPeriode(periode, (req as any).user);
+    }
     return res.json({ message: 'status updated' });
   } catch (err: any) {
     console.error(err);
@@ -420,10 +452,11 @@ export const generateNextFiscal = async (req: Request, res: Response) => {
     const fiscalDocs = await TTVpsDetail.find({ periode: { $gte: rangeStart, $lte: rangeEnd } }).lean();
 
     // Build map of toko -> latest item and infer initial term months from chain
-    type Item = IVpsDetailItem & { _id: any };
+    type Item = IVpsDetailItem & { _id?: any };
     const tokoLatest: Record<string, { last: Item; chainItems: Item[] }> = {};
     for (const doc of fiscalDocs) {
-      for (const it of (doc.detail as any as Item[])) {
+      const detailsArr = Array.isArray(doc.detail) ? doc.detail : [];
+      for (const it of detailsArr) {
         const key = it.toko;
         // Compare by tempo then start
         const currTempo = new Date(it.tempo + 'T00:00:00.000Z').getTime();
@@ -432,14 +465,18 @@ export const generateNextFiscal = async (req: Request, res: Response) => {
         if (!existing || currTempo > existingTempo) {
           // collect items with same chain for months inference
           const chain = (it as any).chain_id;
-          let chainItems: Item[] = [];
+          let chainItems = [] as Item[];
           if (chain) {
-            chainItems = fiscalDocs.flatMap(d => (d.detail as any as Item[])).filter(ci => ci.chain_id === chain);
+            chainItems = fiscalDocs
+              .flatMap(d => Array.isArray(d.detail) ? d.detail : [])
+              .filter(ci => ci && typeof ci === 'object' && ci.chain_id && ci.chain_id === chain);
           } else {
             // fallback: items of same toko and program within fiscal year
-            chainItems = fiscalDocs.flatMap(d => (d.detail as any as Item[])).filter(ci => ci.toko === it.toko && ci.program === it.program);
+            chainItems = fiscalDocs
+              .flatMap(d => Array.isArray(d.detail) ? d.detail : [])
+              .filter(ci => ci && typeof ci === 'object' && ci.toko === it.toko && ci.program === it.program);
           }
-          tokoLatest[key] = { last: it, chainItems };
+          tokoLatest[key] = { last: it as Item, chainItems: chainItems as Item[] };
         }
       }
     }

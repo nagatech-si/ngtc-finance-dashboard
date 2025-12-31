@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query';
 import { createSchedule, deleteItem as deleteTTItem, fetchAvailableSubscribers, fetchDetailsByPeriode, updateItemStatus, updateItem as updateTTItem, TTVpsDetailItemDTO, VpsSubscriberOption, fetchLastPeriod, generateNextFiscal } from '@/api/ttvps';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox, ComboboxOption } from '@/components/ui/Combobox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { CheckCircle2, Trash2, Pencil } from 'lucide-react';
 
@@ -111,7 +112,7 @@ export default function VPS() {
   });
 
   const updateStatusMut = useMutation({
-    mutationFn: ({ periode, itemId, status }: { periode: string; itemId: string; status: 'OPEN' | 'DONE' }) => updateItemStatus({ periode, itemId, status }),
+    mutationFn: ({ periode, itemId, status, tanggalLunas }: { periode: string; itemId: string; status: 'OPEN' | 'DONE'; tanggalLunas?: string }) => updateItemStatus({ periode, itemId, status, tanggalLunas }),
     onSuccess: () => { toast.success('Status diperbarui'); qc.invalidateQueries({ queryKey: ['tt-vps-details'] }); },
     onError: (e: any) => toast.error(e?.response?.data?.message || 'Gagal ubah status'),
   });
@@ -227,9 +228,10 @@ export default function VPS() {
                         {item.status !== 'DONE' && (
                           <ConfirmAction
                             title="Selesaikan VPS?"
-                            description="Status akan diubah menjadi DONE. Lanjutkan?"
+                            description="Status akan diubah menjadi DONE. Pilih tanggal lunas:"
                             actionText="Ya, Selesaikan"
-                            onConfirm={() => updateStatusMut.mutate({ periode: item.__periode, itemId: item._id, status: 'DONE' })}
+                            showDate
+                            onConfirm={(tanggalLunas?: string) => updateStatusMut.mutate({ periode: item.__periode, itemId: item._id, status: 'DONE', tanggalLunas })}
                           >
                             <Button
                               size="icon"
@@ -256,7 +258,7 @@ export default function VPS() {
                     {expanded[`${item.__periode}-${item._id}`] && (
                       <tr className="bg-slate-50">
                         <td colSpan={9} className="py-2 px-4">
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                             <div>
                               <div className="text-xs text-slate-500">Program</div>
                               <div className="text-sm font-medium">{item.program}</div>
@@ -272,6 +274,12 @@ export default function VPS() {
                             <div>
                               <div className="text-xs text-slate-500">Diskon (Rp)</div>
                               <div className="text-sm font-medium">{currency(item.diskon)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-slate-500">Tanggal Lunas</div>
+                              <div className="text-sm font-medium">
+                                {item.tgl_lunas ? format(new Date(item.tgl_lunas), 'dd MMM yyyy') : <span className="text-slate-400">-</span>}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -384,14 +392,15 @@ function VpsFormDialog({ open, onOpenChange, editItem, onSuccess }: { open: bool
         {!editItem ? (
           <div className="space-y-2">
             <Label>Toko</Label>
-            <Select value={subscriberId} onValueChange={setSubscriberId}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Pilih Toko" /></SelectTrigger>
-              <SelectContent>
-                {subs?.map(s => (
-                  <SelectItem key={s._id} value={s._id}>{s.toko} — {currency(s.biaya)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={subs?.map(s => ({ value: s._id, label: `${s.toko} — ${currency(s.biaya)}`, extra: s })) || []}
+              value={subscriberId}
+              onChange={setSubscriberId}
+              placeholder="Pilih Toko"
+              renderOption={(opt, active) => (
+                <span className={active ? 'font-semibold' : ''}>{opt.label}</span>
+              )}
+            />
           </div>
         ) : null}
 
@@ -409,7 +418,11 @@ function VpsFormDialog({ open, onOpenChange, editItem, onSuccess }: { open: bool
           </div>
           <div className="space-y-1">
             <Label>Start Date</Label>
-            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            <Input
+              type="date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+            />
           </div>
           <div className="space-y-1">
             <Label>Jumlah Bulan</Label>
@@ -555,7 +568,16 @@ function TTVpsEditDialog({ open, onOpenChange, item, onSuccess }: { open: boolea
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Start Date</Label>
-                <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                />
+                {startDate && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    Tanggal dipilih: {format(new Date(startDate), 'dd/MM/yyyy')}
+                  </div>
+                )}
               </div>
               <div>
                 <Label>Jumlah Bulan</Label>
@@ -620,7 +642,9 @@ function CurrencyInput({ value, onChange }: { value: number; onChange: (n: numbe
   );
 }
 
-function ConfirmAction({ title, description, actionText, onConfirm, children }: { title: string; description: string; actionText: string; onConfirm: () => void; children: React.ReactElement }) {
+import { useState } from 'react';
+function ConfirmAction({ title, description, actionText, onConfirm, children, showDate }: { title: string; description: string; actionText: string; onConfirm: (date?: string) => void; children: React.ReactElement; showDate?: boolean }) {
+  const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
@@ -629,9 +653,15 @@ function ConfirmAction({ title, description, actionText, onConfirm, children }: 
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {showDate && (
+          <div className="my-2">
+            <Label htmlFor="tanggal-lunas">Tanggal Lunas</Label>
+            <Input id="tanggal-lunas" type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+        )}
         <AlertDialogFooter>
           <AlertDialogCancel>Batal</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>{actionText}</AlertDialogAction>
+          <AlertDialogAction onClick={() => onConfirm(showDate ? date : undefined)}>{actionText}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

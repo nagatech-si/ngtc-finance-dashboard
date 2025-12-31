@@ -40,9 +40,11 @@ export async function createSchedule(payload: { subscriber_id?: string; toko?: s
   return data;
 }
 
-export async function updateItemStatus(params: { periode: string; itemId: string; status: TTVpsStatus }) {
-  const { periode, itemId, status } = params;
-  const { data } = await axiosInstance.patch(`/tt-vps/details/${encodeURIComponent(periode)}/item/${itemId}/status`, { status });
+export async function updateItemStatus(params: { periode: string; itemId: string; status: TTVpsStatus; tanggalLunas?: string }) {
+  const { periode, itemId, status, tanggalLunas } = params;
+  const body: any = { status };
+  if (tanggalLunas) body.tanggalLunas = tanggalLunas;
+  const { data } = await axiosInstance.patch(`/tt-vps/details/${encodeURIComponent(periode)}/item/${itemId}/status`, body);
   return data;
 }
 

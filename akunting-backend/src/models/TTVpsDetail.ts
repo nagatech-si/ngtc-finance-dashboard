@@ -18,6 +18,7 @@ export interface IVpsDetailItem {
   diskon_percent: number;
   total_harga: number;
   status: VpsStatus;
+  tgl_lunas?: string; // YYYY-MM-DD, only set if status is DONE
 }
 
 export interface ITTVpsDetail extends Document {
@@ -47,6 +48,7 @@ const VpsDetailItemSchema = new Schema<IVpsDetailItem>({
   diskon_percent: { type: Number, required: true, min: 0, default: 0 },
   total_harga: { type: Number, required: true, min: 0 },
   status: { type: String, enum: ['OPEN', 'DONE'], default: 'OPEN' },
+  tgl_lunas: { type: String, required: false },
 });
 
 const TTVpsDetailSchema: Schema = new Schema(

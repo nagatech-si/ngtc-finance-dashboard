@@ -63,8 +63,6 @@ export const createVps = async (req: Request, res: Response) => {
     const disc = Math.max(0, Number(discount || 0));
     const netAmount = calcNet(grossAmount, disc);
 
-    const periods = await generatePeriodsUntilFiscalNovember({ startDate: sDate, pricePerMonth });
-
     const item = await VpsSubscription.create({
       subscriber: sub._id,
       pricePerMonth,
@@ -75,7 +73,6 @@ export const createVps = async (req: Request, res: Response) => {
       discount: disc,
       netAmount,
       status: 'ACTIVE',
-      periods,
     });
     const populated = await item.populate('subscriber', 'toko kode biaya program daerah');
     // Also write to tt_vps_details / tt_vps per-month documents
@@ -229,16 +226,16 @@ async function createTTDocumentsForNewVps(params: {
   const firstTempo = calcTempoUTC(startDate, months);
   // Determine fiscal end (November) relative to start
   const endYear = startDate.getUTCMonth() === 11 ? startDate.getUTCFullYear() + 1 : startDate.getUTCFullYear();
-  const fiscalEnd = new Date(Date.UTC(endYear, 10, 30)); // last day Nov (we will correct to actual EOM)
   const fiscalEndDate = new Date(Date.UTC(endYear, 11, 0)); // real last day of November
 
   const entries: { start: Date; bulan: number; tempo: Date; diskon: number }[] = [];
-  entries.push({ start: startDate, bulan: months, tempo: firstTempo, diskon: discountFirst || 0 });
-  let cursorStart = addDaysUTC(firstTempo, 1);
+  let cursorStart = new Date(startDate);
   while (cursorStart <= fiscalEndDate) {
-    const tempo = calcTempoUTC(cursorStart, 1);
-    entries.push({ start: cursorStart, bulan: 1, tempo, diskon: 0 });
-    cursorStart = addDaysUTC(tempo, 1);
+    const tempo = calcTempoUTC(cursorStart, months);
+    entries.push({ start: new Date(cursorStart), bulan: months, tempo, diskon: entries.length === 0 ? (discountFirst || 0) : 0 });
+    const nextStart = addDaysUTC(tempo, 1);
+    if (nextStart > fiscalEndDate) break;
+    cursorStart = nextStart;
   }
 
   const userTag = user?.username || user?._id || 'system';

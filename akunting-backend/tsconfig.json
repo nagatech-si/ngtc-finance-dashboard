@@ -13,5 +13,8 @@
       "node",
       "express"
     ]
-  }
+  },
+  "include": [
+    "src/**/*"
+  ]
 }
